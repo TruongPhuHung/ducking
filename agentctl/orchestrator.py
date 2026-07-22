@@ -22,12 +22,14 @@ from .gitops import (
     capture_diff,
     capture_external_worktree,
     create_independent_clone,
+    create_isolated_branch,
     ensure_commit,
     file_exists_at_commit,
     find_git_root,
     head_sha,
     is_clean,
     read_regular_file_at_commit,
+    validate_isolated_branch_ref,
 )
 from .store import (
     RunStore,
@@ -326,7 +328,26 @@ def dispatch_unit(project_path: Path, run_id: str) -> dict[str, Any]:
             )
         workspace = Path(state["workspace"])
         if next_attempt == 1:
-            create_independent_clone(project_root, state["base_sha"], workspace)
+            flock_attempt = task.get("flock_attempt")
+            if flock_attempt is not None:
+                if not isinstance(flock_attempt, dict) or not isinstance(
+                    flock_attempt.get("branch_ref"), str
+                ):
+                    raise AgentCtlError(
+                        "task.flock_attempt must contain branch_ref",
+                        code="invalid_contract",
+                    )
+                validate_isolated_branch_ref(
+                    project_root, flock_attempt["branch_ref"]
+                )
+            try:
+                create_independent_clone(project_root, state["base_sha"], workspace)
+                if flock_attempt is not None:
+                    create_isolated_branch(workspace, flock_attempt["branch_ref"])
+            except AgentCtlError:
+                if workspace.is_dir() and not workspace.is_symlink():
+                    shutil.rmtree(workspace)
+                raise
         elif not workspace.is_dir() or workspace.is_symlink():
             raise AgentCtlError(
                 "Repair workspace is missing", code="workspace_missing"

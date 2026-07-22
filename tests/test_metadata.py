@@ -17,7 +17,7 @@ class MetadataTests(unittest.TestCase):
             (root / ".codex-plugin" / "plugin.json").read_text(encoding="utf-8")
         )
         version_file = (root / "VERSION").read_text(encoding="utf-8").strip()
-        self.assertEqual(plugin["version"], __version__)
+        self.assertEqual(plugin["version"].split("+", 1)[0], __version__)
         self.assertEqual(version_file, __version__)
 
     def test_run_ids_stay_valid_for_maximum_task_id(self) -> None:

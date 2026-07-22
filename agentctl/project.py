@@ -298,6 +298,34 @@ def doctor_project(path: Path, *, user_config_path: Path | None) -> dict[str, An
                     "reason": "unsafe-host workers require explicit per-run authority",
                 }
             )
+        for role in (("mother", "top") if user.semantic_roles else ()):
+            profile_name = user.semantic_roles.get(role)
+            semantic_profile = (
+                user.worker_profiles.get(profile_name) if profile_name else None
+            )
+            if semantic_profile is None:
+                checks.append(
+                    {
+                        "name": f"semantic_role:{role}",
+                        "ok": False,
+                        "reason": f"missing semantic role/profile for {role}",
+                    }
+                )
+                continue
+            checks.append(
+                {
+                    "name": f"semantic_role:{role}",
+                    **probe_worker(semantic_profile),
+                }
+            )
+            checks.append(
+                {
+                    "name": f"semantic_isolation:{role}",
+                    "ok": semantic_profile.isolation == "external-sandbox",
+                    "declared": semantic_profile.isolation,
+                    "reason": "unsafe-host semantic supervisors require explicit dispatch authority",
+                }
+            )
     except AgentCtlError as exc:
         checks.append(
             {

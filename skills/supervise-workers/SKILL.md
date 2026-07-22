@@ -1,6 +1,6 @@
 ---
 name: supervise-workers
-description: Supervise bounded CLI coding workers through the provider-neutral agentctl control plane. Use when Codex should act as planner or semantic reviewer, delegate implementation or repair to a cheaper external coding agent, verify its patch with project-owned commands, enforce budgets and path policy, or prepare an accepted patch for human-controlled integration.
+description: Plan and senior-review bounded CLI coding work through Ducking's provider-neutral agentctl control plane. Use when Codex should delegate implementation to cheaper workers, operate the six-duck Flock protocol, handle a senior escalation, review frozen evidence, enforce budgets and path policy, or prepare an accepted patch for human-controlled integration.
 ---
 
 # Supervise Workers
@@ -8,8 +8,9 @@ description: Supervise bounded CLI coding workers through the provider-neutral a
 Resolve this file's canonical location, then resolve the bundled CLI exactly two
 directories above it at `scripts/agentctl`. Use that absolute entrypoint for
 every call; never trust a same-named script in the attached project or assume
-`agentctl` is on `PATH`. Keep Codex as the control authority and treat every
-worker result as untrusted until deterministic gates and semantic review pass.
+`agentctl` is on `PATH`. Treat every worker and DeepSeek-supervisor result as
+untrusted until deterministic gates and senior semantic review pass. Do not
+poll a flock with model turns; read only durable escalation/final-review packets.
 
 ## Workflow
 
@@ -47,16 +48,68 @@ worker result as untrusted until deterministic gates and semantic review pass.
    `decision approve-human`.
 10. Integrate only an accepted patch. Use dry-run first. Never commit, push,
    merge, deploy, install dependencies, access secrets, or perform destructive
-   data changes without the user's authority.
+    data changes without the user's authority.
+
+## Flock Workflow
+
+Use plan contract v2 when work has real independent units. A flock always owns
+six logical duck slots; units beyond six remain queued. Do not split work merely
+to fill slots, and declare dependencies whenever ordering or shared ownership
+requires it.
+
+1. Freeze one clean base and a plan containing atomic task-v1 units, finite
+   attempts, and lease thresholds. Initialize with `agentctl flock init`; when
+   either frozen profile is `unsafe-host`, pass the corresponding explicit
+   `--allow-unsafe-worker` / `--allow-unsafe-supervisor` authority.
+2. Let a deterministic runner call `flock tick`, launch each assignment through
+   the existing leaf run pipeline, and send numeric heartbeats. Never pass a
+   transcript, prior conversation, hidden reasoning, credential, or raw log.
+3. Treat `(lease_id, coordinator_epoch, slot_id, duck_incarnation)` as a fencing
+   tuple. Reject stale completions. Every attempt and every terminal task needs
+   exactly one explicit EOF. `tick` may replay an assignment until its first
+   heartbeat; launch it once and use the lease ID as the idempotency key.
+4. Call `flock sweep` from a timer. Soft stalls create one event episode; hard
+   liveness/progress expiry ends the attempt. A failed attempt gets a new lease,
+   incarnation, and `ducking/...` branch inside a new independent clone;
+   quarantine the old workspace rather than sharing Git metadata with siblings.
+   After coordinator loss, stop old child controllers, then call `flock recover`
+   with the observed `--expected-epoch` and a stable `--operation-id` to fence
+   every old lease without replaying the recovery. Recovery re-issues unaffected
+   semantic obligations against the new epoch; during final review it is a no-op.
+5. Configure both `semantic_roles.mother` and `semantic_roles.top` to the
+   confirmed DeepSeek V4 Pro profile. Invoke `supervisor dispatch` only when
+   `supervisor next` reports a pending durable event. Every call is a fresh
+   session over a <=16 KiB snapshot and selects a pre-issued command ID.
+6. Report success with `flock finish --run CHILD_RUN_ID`; never substitute
+   caller-supplied hashes. A low-risk child may be `ready_for_review` or
+   `accepted`; a high-risk child requires its hash-bound gate and `accepted`.
+   The runtime re-hashes task/patch/evidence, creates its own review pack, and
+   retains the exact artifacts.
+7. Sol wakes only for `senior_escalation` or `aggregate_final_review`. Start a
+   fresh context, read that packet plus hash-bound task/patch/evidence artifacts,
+   and never import the worker or supervisor transcript.
+8. The current MVP ends at aggregate state `reviewed`; this means the retained
+   child artifacts passed Sol review, not that patches were combined or applied.
+   Do not integrate child patches independently. Build and verify a combined
+   candidate under a separately authorized orchestration step.
+
+DeepSeek semantic output is advice, not lifecycle authority. Invalid, stale,
+timed-out, or profile-mismatched responses leave leases and task state unchanged.
+There is no fallback model. Semantic delivery itself is capped at three tries
+with 5/30-second backoff, then the runtime fences the flock and wakes Sol. Top
+DeepSeek may escalate but may not abort. The deterministic runtime owns retry
+caps, restart intensity, cancellation, EOF, and the terminal state. On an
+ambiguous `retry_wait`, Top/Sol `ack` authorizes the next bounded attempt.
 
 When doctor reports a missing user configuration or worker profile, use
 `agentctl paths --json` to locate the user config and point the user to
 `templates/user-config.toml`. Do not create credentials or select an
 unconfirmed provider/model identifier on the user's behalf.
 
-Never supply `--allow-unsafe-worker` or `--allow-unsafe-validation` unless the
-user explicitly authorizes host-level execution for that run. OpenCode
-permissions are defense in depth; they do not replace a container or OS sandbox.
+Never supply `--allow-unsafe-worker`, `--allow-unsafe-supervisor`, or
+`--allow-unsafe-validation` unless the user explicitly authorizes host-level
+execution for that run. OpenCode permissions are defense in depth; they do not
+replace a container or OS sandbox.
 
 ## Planning Rules
 

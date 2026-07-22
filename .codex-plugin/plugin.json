@@ -1,6 +1,6 @@
 {
   "name": "ducking",
-  "version": "0.1.1",
+  "version": "0.2.0+codex.20260722170446",
   "description": "Lead a coordinated flock of supervised CLI coding workers",
   "author": {
     "name": "TruongPhuHung"
@@ -9,12 +9,15 @@
   "interface": {
     "displayName": "Ducking",
     "shortDescription": "Lead lower-cost coding workers as one flock.",
-    "longDescription": "Keep Codex at the front of the flock for planning and review while a provider-neutral control plane dispatches bounded CLI workers and verifies every patch.",
+    "longDescription": "Use Codex for planning, senior escalation, and final review while DeepSeek semantic supervisors and six bounded worker slots follow a provider-neutral, OTP-inspired control protocol.",
     "developerName": "TruongPhuHung",
     "category": "Productivity",
-    "capabilities": ["Interactive", "Write"],
+    "capabilities": [
+      "Interactive",
+      "Write"
+    ],
     "defaultPrompt": [
-      "Lead this change: plan it, dispatch a bounded worker, and review the verified patch."
+      "Lead this change: plan atomic units, supervise the six-duck flock, and review only escalation or final evidence."
     ]
   }
 }

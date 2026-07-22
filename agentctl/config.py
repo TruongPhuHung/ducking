@@ -80,6 +80,7 @@ class UserConfig:
     path: Path
     schema_version: int
     worker_profiles: dict[str, WorkerProfile]
+    semantic_roles: dict[str, str]
 
 
 def default_user_config_path() -> Path:
@@ -411,4 +412,30 @@ def load_user_config(path: Path | None = None) -> UserConfig:
             isolation=isolation,
             runtime_id=runtime_id,
         )
-    return UserConfig(path=resolved, schema_version=schema_version, worker_profiles=profiles)
+    semantic_rows = raw.get("semantic_roles", {})
+    if not isinstance(semantic_rows, dict):
+        raise AgentCtlError(
+            "semantic_roles must be a table", code="invalid_config"
+        )
+    semantic_roles: dict[str, str] = {}
+    for role, profile_value in semantic_rows.items():
+        role_name = require_identifier(role, "semantic_roles key")
+        if role_name not in {"mother", "top"}:
+            raise AgentCtlError(
+                f"Unsupported semantic role: {role_name}", code="invalid_config"
+            )
+        profile_name = require_identifier(
+            profile_value, f"semantic_roles.{role_name}"
+        )
+        if profile_name not in profiles:
+            raise AgentCtlError(
+                f"semantic_roles.{role_name} references an unknown worker profile",
+                code="invalid_config",
+            )
+        semantic_roles[role_name] = profile_name
+    return UserConfig(
+        path=resolved,
+        schema_version=schema_version,
+        worker_profiles=profiles,
+        semantic_roles=semantic_roles,
+    )

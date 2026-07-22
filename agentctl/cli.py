@@ -8,6 +8,18 @@ from typing import Any, Sequence
 
 from . import __version__
 from .errors import AgentCtlError
+from .flock import (
+    cancel_flock,
+    flock_finish,
+    flock_heartbeat,
+    recover_flock,
+    flock_status,
+    flock_sweep,
+    flock_tick,
+    init_flock,
+    next_semantic_snapshot,
+    submit_semantic_action,
+)
 from .orchestrator import (
     approve_human_decision,
     cancel_run,
@@ -26,6 +38,8 @@ from .project import (
     inspect_project,
     paths,
 )
+from .semantic import dispatch_semantic_supervisor, semantic_profile_summary
+from .util import read_json
 
 
 def _add_output_flag(parser: argparse.ArgumentParser) -> None:
@@ -136,7 +150,125 @@ def build_parser() -> argparse.ArgumentParser:
     mode.add_argument("--dry-run", action="store_true")
     mode.add_argument("--apply", action="store_true")
     _add_output_flag(integrate)
+
+    flock = subcommands.add_parser("flock")
+    flock_commands = flock.add_subparsers(dest="flock_command", required=True)
+    flock_init = flock_commands.add_parser("init")
+    _add_project(flock_init)
+    _add_user_config(flock_init)
+    flock_init.add_argument("--plan", type=Path, required=True)
+    flock_init.add_argument(
+        "--allow-unsafe-worker",
+        action="store_true",
+        help="Explicitly authorize the probed child worker profile on the host",
+    )
+    flock_init.add_argument(
+        "--allow-unsafe-supervisor",
+        action="store_true",
+        help="Explicitly authorize the probed semantic profiles on the host",
+    )
+    _add_output_flag(flock_init)
+    flock_status_parser = flock_commands.add_parser("status")
+    _add_project(flock_status_parser)
+    flock_status_parser.add_argument("--flock")
+    _add_output_flag(flock_status_parser)
+    tick = flock_commands.add_parser("tick")
+    _add_project(tick)
+    tick.add_argument("--flock", required=True)
+    _add_output_flag(tick)
+    heartbeat = flock_commands.add_parser("heartbeat")
+    _add_project(heartbeat)
+    heartbeat.add_argument("--flock", required=True)
+    heartbeat.add_argument("--slot", type=int, required=True)
+    heartbeat.add_argument("--lease", required=True)
+    heartbeat.add_argument("--progress-seq", type=int, required=True)
+    heartbeat.add_argument("--phase", required=True)
+    heartbeat.add_argument("--summary", default="")
+    _add_output_flag(heartbeat)
+    finish = flock_commands.add_parser("finish")
+    _add_project(finish)
+    finish.add_argument("--flock", required=True)
+    finish.add_argument("--slot", type=int, required=True)
+    finish.add_argument("--lease", required=True)
+    finish.add_argument(
+        "--outcome",
+        required=True,
+        choices=["succeeded", "retryable_failure", "fatal_failure", "cancelled"],
+    )
+    finish.add_argument("--reason", required=True)
+    finish.add_argument(
+        "--run",
+        help="Verified child run ID; required only when outcome is succeeded",
+    )
+    finish.add_argument(
+        "--artifact",
+        action="append",
+        default=[],
+        metavar="NAME=SHA256",
+        help="Attach a hash-only failure diagnostic; invalid for succeeded EOF",
+    )
+    _add_output_flag(finish)
+    sweep = flock_commands.add_parser("sweep")
+    _add_project(sweep)
+    sweep.add_argument("--flock", required=True)
+    _add_output_flag(sweep)
+    flock_cancel = flock_commands.add_parser("cancel")
+    _add_project(flock_cancel)
+    flock_cancel.add_argument("--flock", required=True)
+    _add_output_flag(flock_cancel)
+    recover = flock_commands.add_parser("recover")
+    _add_project(recover)
+    recover.add_argument("--flock", required=True)
+    recover.add_argument("--expected-epoch", type=int, required=True)
+    recover.add_argument("--operation-id", required=True)
+    recover.add_argument("--reason", default="coordinator_lost")
+    _add_output_flag(recover)
+
+    supervisor = subcommands.add_parser("supervisor")
+    supervisor_commands = supervisor.add_subparsers(
+        dest="supervisor_command", required=True
+    )
+    supervisor_next = supervisor_commands.add_parser("next")
+    _add_project(supervisor_next)
+    supervisor_next.add_argument("--flock", required=True)
+    supervisor_next.add_argument("--role", required=True, choices=["mother", "top", "sol"])
+    _add_output_flag(supervisor_next)
+    supervisor_apply = supervisor_commands.add_parser("apply")
+    _add_project(supervisor_apply)
+    supervisor_apply.add_argument("--flock", required=True)
+    supervisor_apply.add_argument("--file", type=Path, required=True)
+    _add_output_flag(supervisor_apply)
+    supervisor_dispatch = supervisor_commands.add_parser("dispatch")
+    _add_project(supervisor_dispatch)
+    supervisor_dispatch.add_argument("--flock", required=True)
+    supervisor_dispatch.add_argument("--role", required=True, choices=["mother", "top"])
+    supervisor_dispatch.add_argument(
+        "--allow-unsafe-supervisor",
+        action="store_true",
+        help="Explicitly authorize a semantic supervisor on the host",
+    )
+    _add_output_flag(supervisor_dispatch)
+    supervisor_profiles = supervisor_commands.add_parser("profiles")
+    _add_project(supervisor_profiles)
+    supervisor_profiles.add_argument("--flock", required=True)
+    _add_output_flag(supervisor_profiles)
     return parser
+
+
+def _artifacts(values: list[str]) -> dict[str, str]:
+    result: dict[str, str] = {}
+    for value in values:
+        name, separator, digest = value.partition("=")
+        if not separator or not name or not digest:
+            raise AgentCtlError(
+                "--artifact must use NAME=SHA256", code="invalid_argument"
+            )
+        if name in result:
+            raise AgentCtlError(
+                f"Duplicate artifact name: {name}", code="invalid_argument"
+            )
+        result[name] = digest
+    return result
 
 
 def _dispatch(args: argparse.Namespace) -> dict[str, Any]:
@@ -181,6 +313,72 @@ def _dispatch(args: argparse.Namespace) -> dict[str, Any]:
         return approve_human_decision(args.project, args.run, args.file)
     if args.command == "integrate":
         return integrate_run(args.project, args.run, dry_run=not args.apply)
+    if args.command == "flock":
+        if args.flock_command == "init":
+            return init_flock(
+                args.project,
+                args.plan,
+                user_config_path=args.user_config,
+                allow_unsafe_worker=args.allow_unsafe_worker,
+                allow_unsafe_supervisor=args.allow_unsafe_supervisor,
+            )
+        if args.flock_command == "status":
+            return flock_status(args.project, args.flock)
+        if args.flock_command == "tick":
+            return flock_tick(args.project, args.flock)
+        if args.flock_command == "heartbeat":
+            return flock_heartbeat(
+                args.project,
+                args.flock,
+                slot_id=args.slot,
+                lease_id=args.lease,
+                progress_seq=args.progress_seq,
+                phase=args.phase,
+                summary=args.summary,
+            )
+        if args.flock_command == "finish":
+            return flock_finish(
+                args.project,
+                args.flock,
+                slot_id=args.slot,
+                lease_id=args.lease,
+                outcome=args.outcome,
+                reason=args.reason,
+                child_run_id=args.run,
+                artifacts=_artifacts(args.artifact),
+            )
+        if args.flock_command == "sweep":
+            return flock_sweep(args.project, args.flock)
+        if args.flock_command == "recover":
+            return recover_flock(
+                args.project,
+                args.flock,
+                expected_epoch=args.expected_epoch,
+                operation_id=args.operation_id,
+                reason=args.reason,
+            )
+        return cancel_flock(args.project, args.flock)
+    if args.command == "supervisor":
+        if args.supervisor_command == "next":
+            return next_semantic_snapshot(
+                args.project, args.flock, role=args.role
+            )
+        if args.supervisor_command == "dispatch":
+            return dispatch_semantic_supervisor(
+                args.project,
+                args.flock,
+                role=args.role,
+                allow_unsafe_supervisor=args.allow_unsafe_supervisor,
+            )
+        if args.supervisor_command == "profiles":
+            return semantic_profile_summary(args.project, args.flock)
+        value = read_json(args.file)
+        if not isinstance(value, dict):
+            raise AgentCtlError(
+                "Semantic action file must contain an object",
+                code="invalid_contract",
+            )
+        return submit_semantic_action(args.project, args.flock, value)
     raise AgentCtlError("Unknown command", code="invalid_command")
 
 

@@ -26,7 +26,39 @@ argv = [
 ]
 probe_argv = ["opencode", "models"]
 probe_contains = "deepseek/deepseek-v4-pro"
-env_allow = ["HOME", "XDG_CONFIG_HOME", "DEEPSEEK_API_KEY"]
+env_allow = ["HOME", "XDG_CONFIG_HOME"]
 timeout_seconds = 1500
 max_output_bytes = 8000000
 prompt = "Read the request contract at {request_file}, then read every task.context_files entry. Implement only its bounded objective. Do not commit, push, access external paths, or change the contract. Leave the workspace ready for controller verification."
+
+# Semantic supervisors use the same provider-neutral argv contract but run in a
+# fresh, snapshot-only workspace. Both roles intentionally resolve to DeepSeek;
+# Sol is not configured here because it is only awakened for escalation/final
+# review by the Codex control session.
+[semantic_roles]
+mother = "deepseek-supervisor"
+top = "deepseek-supervisor"
+
+[worker_profiles.deepseek-supervisor]
+adapter = "generic-cli"
+runtime_id = "opencode-deepseek-v4-pro-supervisor"
+isolation = "unsafe-host"
+argv = [
+  "opencode",
+  "run",
+  "--format",
+  "json",
+  "--model",
+  "deepseek/deepseek-v4-pro",
+  "--agent",
+  "agentctl-supervisor",
+  "--dir",
+  "{workspace}",
+  "{prompt}"
+]
+probe_argv = ["opencode", "models"]
+probe_contains = "deepseek/deepseek-v4-pro"
+env_allow = ["HOME", "XDG_CONFIG_HOME"]
+timeout_seconds = 180
+max_output_bytes = 1000000
+prompt = "Read the canonical semantic snapshot envelope at {request_file}. Start with no previous conversation. Select exactly one snapshot.allowed_commands entry. Return only one JSON object with contract_version=1, snapshot_id, snapshot_sha256, selected_command_id, and a short lowercase reason_code. Do not infer scope, add commands, quote logs, or edit files."

@@ -10,6 +10,7 @@ from agentctl.gitops import (
     capture_diff,
     capture_external_worktree,
     create_independent_clone,
+    create_isolated_branch,
 )
 from agentctl.verifier import evaluate_policy
 
@@ -48,6 +49,17 @@ class GitIsolationTests(unittest.TestCase):
             ).stdout.strip()
 
             create_independent_clone(repo, base_sha, clone)
+            create_isolated_branch(
+                clone, "ducking/flock-one/unit-one/a1-i1"
+            )
+            branch = subprocess.run(
+                ["git", "branch", "--show-current"],
+                cwd=clone,
+                check=True,
+                text=True,
+                stdout=subprocess.PIPE,
+            ).stdout.strip()
+            self.assertEqual(branch, "ducking/flock-one/unit-one/a1-i1")
             remotes = subprocess.run(
                 ["git", "remote"],
                 cwd=clone,

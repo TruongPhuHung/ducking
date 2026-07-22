@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://local.ducking/schemas/semantic-action-v1.json",
+  "title": "Ducking Semantic Action v1",
+  "type": "object",
+  "required": [
+    "contract_version",
+    "snapshot_id",
+    "snapshot_sha256",
+    "selected_command_id",
+    "reason_code"
+  ],
+  "properties": {
+    "contract_version": {"const": 1},
+    "snapshot_id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9._-]{0,127}$"},
+    "snapshot_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "selected_command_id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9._-]{0,127}$"},
+    "reason_code": {"type": "string", "pattern": "^[a-z0-9][a-z0-9._-]{0,127}$"}
+  },
+  "additionalProperties": false
+}

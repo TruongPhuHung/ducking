@@ -1,0 +1,7 @@
+{
+  "contract_version": 1,
+  "snapshot_id": "copy-from-supervisor-next",
+  "snapshot_sha256": "copy-the-64-character-snapshot-hash",
+  "selected_command_id": "copy-one-offered-command-id",
+  "reason_code": "bounded_reason"
+}

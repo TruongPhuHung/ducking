@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://local.ducking/schemas/semantic-snapshot-v1.json",
+  "title": "Ducking Semantic Snapshot v1",
+  "type": "object",
+  "required": [
+    "schema",
+    "contract_version",
+    "snapshot_id",
+    "role",
+    "trigger",
+    "generated_at",
+    "flock",
+    "alerts",
+    "allowed_commands",
+    "context_policy"
+  ],
+  "properties": {
+    "schema": {"const": "ducking.semantic-snapshot/v1"},
+    "contract_version": {"const": 1},
+    "snapshot_id": {"type": "string"},
+    "role": {"enum": ["mother", "top", "sol"]},
+    "model_profile": {"type": ["string", "null"]},
+    "trigger": {"type": "string"},
+    "generated_at": {"type": "string"},
+    "flock": {"type": "object"},
+    "task": {"type": ["object", "null"]},
+    "slot": {"type": ["object", "null"]},
+    "attempt": {"type": ["object", "null"]},
+    "progress": {"type": ["object", "null"]},
+    "retry": {"type": ["object", "null"]},
+    "budgets": {"type": ["object", "null"]},
+    "alerts": {"type": "array", "maxItems": 6},
+    "artifacts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["kind", "sha256"],
+        "properties": {
+          "kind": {"type": "string"},
+          "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+          "ref": {"type": "string"}
+        },
+        "additionalProperties": false
+      }
+    },
+    "allowed_commands": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "command_id",
+          "name",
+          "if_revision",
+          "if_flock_revision",
+          "if_coordinator_epoch",
+          "if_flock_state"
+        ],
+        "properties": {
+          "command_id": {"type": "string"},
+          "name": {"type": "string"},
+          "if_revision": {"type": "integer", "minimum": 0},
+          "if_flock_revision": {"type": "integer", "minimum": 0},
+          "if_coordinator_epoch": {"type": "integer", "minimum": 1},
+          "if_flock_state": {"type": "string"}
+        },
+        "additionalProperties": false
+      }
+    },
+    "context_policy": {
+      "type": "object",
+      "properties": {
+        "worker_transcript_included": {"const": false},
+        "worker_prose_included": {"const": false},
+        "prior_conversation_included": {"const": false},
+        "raw_logs_included": {"const": false}
+      },
+      "required": [
+        "worker_transcript_included",
+        "worker_prose_included",
+        "prior_conversation_included",
+        "raw_logs_included"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

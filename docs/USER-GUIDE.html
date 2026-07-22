@@ -342,17 +342,18 @@
   <header class="hero">
     <div class="wrap hero-grid">
       <div>
-        <span class="eyebrow">Ducking · Protocol v1</span>
-        <h1>Dùng Sol để suy nghĩ, dùng worker để thi công</h1>
+        <span class="eyebrow">Ducking · Protocol v1 · Flock MVP</span>
+        <h1>Dùng Sol đúng lúc, dùng flock để điều phối</h1>
         <p class="lede">
-          Ducking lấy cảm hứng từ bầy vịt đi theo con đầu đàn: Sol dẫn đường bằng kế hoạch và review
-          ngữ nghĩa; OpenCode/DeepSeek theo contract để xử lý task nhỏ; máy kiểm chứng giữ patch,
-          hash, ngân sách và trạng thái. Người dùng vẫn nắm quyền đối với rủi ro và Git.
+          Ducking lấy cảm hứng từ bầy vịt đi theo con đầu đàn: RuntimeSupervisor và MotherRuntime
+          điều phối sáu slot logic; DeepSeek xử lý semantic routing thường ngày; Sol chỉ được gọi khi
+          escalation hoặc final review; máy kiểm chứng giữ patch, hash, ngân sách và trạng thái.
+          Người dùng vẫn nắm quyền đối với rủi ro và Git.
         </p>
       </div>
       <aside class="hero-note">
-        <strong>Kết quả cuối của agentctl là một patch đã kiểm chứng.</strong>
-        <p>Nó không commit, push, merge hay deploy. Ngay cả <code>integrate --apply</code> cũng chỉ áp patch vào worktree sạch.</p>
+        <strong>Single-run tạo patch đã kiểm chứng; Flock MVP chỉ điều phối các child run.</strong>
+        <p>Flock chưa tự ghép patch. <code>agentctl</code> không commit, push, merge hay deploy; ngay cả <code>integrate --apply</code> cũng chỉ áp patch của một run vào worktree sạch.</p>
       </aside>
     </div>
   </header>
@@ -364,6 +365,7 @@
       <a href="#worker">Worker</a>
       <a href="#gan-project">Gắn project</a>
       <a href="#task">Task</a>
+      <a href="#flock">Flock MVP</a>
       <a href="#van-hanh">Vận hành</a>
       <a href="#review">Review</a>
       <a href="#social-match">social_match</a>
@@ -618,11 +620,212 @@ git commit -m "chore: attach ducking"</code></pre>
         <p>Nếu còn câu hỏi làm thay đổi hành vi sản phẩm, security/privacy, data shape, dependency hoặc release scope, Sol dừng và hỏi người dùng trước. Task không chứa provider/model, CLI flags, credential hay suy luận ẩn.</p>
       </div>
 
-      <p><code>schemas/plan.schema.json</code> có thể dùng để biểu diễn kế hoạch nhiều unit, nhưng CLI hiện tại khởi tạo từng task JSON; không có lệnh <code>agentctl plan</code>.</p>
+      <p>Một task tiếp tục dùng single-run protocol. Với nhiều unit có dependency, đặt các task contract hoàn chỉnh vào plan rồi dùng <code>flock init</code> như mục 6; Flock không nới lỏng scope hay validation của từng child run.</p>
+    </section>
+
+    <section id="flock">
+      <h2>6. Flock MVP lấy cảm hứng từ OTP</h2>
+      <p class="section-intro">Flock thêm lớp điều phối nhiều unit nhưng không phải Erlang/OTP, không phải daemon và không tự sinh sáu process. State machine xác định scheduling, lease, retry và terminal state; model chỉ được chọn một lệnh semantic đã được controller cho phép.</p>
+
+      <div class="grid-2">
+        <article class="card role control">
+          <span class="tag">Deterministic</span>
+          <h3>RuntimeSupervisor</h3>
+          <p>Giữ flock state, coordinator epoch, sweep lease, alert, restart intensity, cancel và escalation. Đây là vai trò trong controller/state bền vững, không phải phiên chat sống lâu.</p>
+        </article>
+        <article class="card role control">
+          <span class="tag">Deterministic</span>
+          <h3>MotherRuntime</h3>
+          <p>Khi gọi <code>flock tick</code>, ghép task đã sẵn sàng theo dependency với slot đang rảnh. Nó chỉ schedule, không đưa ra quyết định sản phẩm.</p>
+        </article>
+        <article class="card role worker">
+          <span class="tag">Fixed pool</span>
+          <h3>Đúng sáu slot logic</h3>
+          <p>Mọi flock luôn có slot 0–5. Plan không đổi kích thước pool. Đây là trần lease logic, không bảo đảm sáu process chạy đồng thời; external runner và <code>max_parallel</code> của child project có thể thấp hơn.</p>
+        </article>
+        <article class="card role">
+          <span class="tag">Semantic</span>
+          <h3>DeepSeek mother + top</h3>
+          <p>Hai role dùng invocation mới, stateless, chỉ đọc snapshot đã giới hạn. Sol không nằm trong normal loop; Sol chỉ nhận senior escalation hoặc aggregate final review.</p>
+        </article>
+      </div>
+
+      <div class="callout warn">
+        <strong><code>MotherRuntime</code> khác semantic <code>mother</code></strong>
+        <p><code>MotherRuntime</code> là scheduler xác định trong Python. Semantic <code>mother</code> là DeepSeek được gọi cho soft stall hoặc failure mơ hồ và chỉ được chọn một command trong allowlist.</p>
+      </div>
+
+      <h3>6.1 Cấu hình supervisor ngoài project</h3>
+      <p>User config phải ánh xạ cả hai semantic role tới profile đã tồn tại. Template đi kèm cố ý dùng cùng một DeepSeek profile:</p>
+
+      <pre><code>[semantic_roles]
+mother = "deepseek-supervisor"
+top = "deepseek-supervisor"</code></pre>
+
+      <p>Cài deny-first agent đúng tên được dùng trong profile:</p>
+
+      <pre><code>mkdir -p "$HOME/.config/opencode/agents"
+cp "$ACP_ROOT/templates/opencode-supervisor-agent.md" \
+  "$HOME/.config/opencode/agents/agentctl-supervisor.md"</code></pre>
+
+      <p>Mỗi dispatch tạo workspace mới chỉ chứa canonical snapshot tối đa 16 KiB. Snapshot không chứa prior conversation, worker transcript, heartbeat summary, worker prose khác hay raw log. Child worker profile và cả hai semantic profile được probe, đóng băng và hash khi tạo flock; không có model fallback. Provider/model ID, argv và credential vẫn chỉ nằm trong user config/environment, không nằm trong plan.</p>
+
+      <div class="callout danger">
+        <strong>Semantic supervisor cũng cần sandbox</strong>
+        <p>Nếu child worker là <code>unsafe-host</code>, <code>flock init</code> cần <code>--allow-unsafe-worker</code>. Nếu mother/top là <code>unsafe-host</code>, init cần <code>--allow-unsafe-supervisor</code> và mỗi <code>supervisor dispatch</code> sau đó vẫn cần flag này. Các flag là opt-in riêng cho từng invocation; permission read-only của OpenCode không thay thế container/VM/OS sandbox thật.</p>
+      </div>
+
+      <h3>6.2 Tạo plan và khởi tạo flock</h3>
+      <p>Bắt đầu từ <code>templates/plan.json</code>. Flock plan dùng <code>contract_version: 2</code> và cần <code>plan_id</code>, <code>base_sha</code>, <code>goal</code>, danh sách <code>units</code>; task contract lồng bên trong vẫn là version 1. Mỗi unit có <code>depends_on</code>, dùng cùng base SHA và dependency graph không được có chu kỳ. Có thể đặt policy:</p>
+
+      <pre><code>"retry": {"max_attempts": 3, "delays_seconds": [5, 30]},
+"lease": {
+  "liveness_soft_seconds": 45,
+  "liveness_hard_seconds": 90,
+  "progress_soft_seconds": 120,
+  "progress_hard_seconds": 600
+}</code></pre>
+
+      <p>Pool luôn là sáu slot, không phải field trong plan. <code>budget.wall_seconds</code> của mỗi unit được tính cộng dồn qua các attempt; hết wall budget sẽ dead-letter dù vẫn còn attempt. Worktree phải sạch, <code>base_sha</code> phải đúng <code>HEAD</code>, và <code>flock init</code> phải probe thành công cả mother/top runtime trước khi đóng băng profile + hash:</p>
+
+      <pre><code>"$ACP" flock init --project /absolute/path/to/project \
+  --plan /absolute/path/to/plan.json --json
+
+# Đặt FLOCK_ID bằng flock_id vừa trả về.
+"$ACP" flock status --project /absolute/path/to/project \
+  --flock "$FLOCK_ID" --json
+"$ACP" supervisor profiles --project /absolute/path/to/project \
+  --flock "$FLOCK_ID" --json</code></pre>
+
+      <p>Nếu cả child worker và semantic profiles chạy trực tiếp trên host, chỉ sau human authorization mới dùng:</p>
+
+      <pre><code>"$ACP" flock init --project /absolute/path/to/project \
+  --plan /absolute/path/to/plan.json \
+  --allow-unsafe-worker --allow-unsafe-supervisor --json</code></pre>
+
+      <p>Hai flag init không thay thế gate riêng của child <code>run init</code>, validator hoặc từng semantic dispatch. Với external sandbox thật, bỏ flag tương ứng.</p>
+
+      <h3>6.3 <code>tick</code> chỉ cấp lease; external runner mới chạy child pipeline</h3>
+      <div class="flow" aria-label="Luồng Flock MVP">
+        <div class="state">flock tick</div><div class="arrow">→</div>
+        <div class="state">logical lease</div><div class="arrow">→</div>
+        <div class="state">external runner</div><div class="arrow">→</div>
+        <div class="state">child run pipeline</div><div class="arrow">→</div>
+        <div class="state">flock finish</div>
+      </div>
+
+      <pre><code>"$ACP" flock tick --project /absolute/path/to/project \
+  --flock "$FLOCK_ID" --json</code></pre>
+
+      <div class="callout warn">
+        <strong>Không nhầm assignment với execution</strong>
+        <p><code>tick</code> ghi lease vào state và trả assignment gồm task, slot, incarnation, lease ID và <code>branch_ref</code>. Nó chưa gọi worker hay chạy test. External runner phải giữ mapping lease ↔ child <code>run_id</code>, serialize nguyên task được trả về ngoài project rồi gọi <code>run init → unit dispatch → unit verify</code>. Ở lần dispatch đầu, controller tạo nhánh <code>ducking/...</code> bên trong clone nông độc lập của duck; không tạo branch trong source repo và không chia sẻ Git metadata với duck khác. <code>depends_on</code> chỉ chặn thời điểm cấp lease, không tự áp patch upstream vào base của unit downstream; cho tới khi có assembly/rebase bên ngoài, các unit phụ thuộc phải độc lập về patch hoặc operator phải quản lý handoff này.</p>
+      </div>
+
+      <p>Child low-risk có thể báo Flock success ở <code>ready_for_review</code> hoặc <code>accepted</code>. Child high-risk phải tiếp tục qua per-child review <code>human_required</code> và human approval gắn hash đến state <code>accepted</code> trước khi báo success.</p>
+
+      <p>Trước heartbeat hợp lệ đầu tiên, gọi <code>flock tick</code> lại sẽ trả đúng assignment/lease cũ với <code>replayed: true</code>, không tạo lease mới. Runner phải persist mapping lease → child run và dedupe theo lease ID trước khi heartbeat; replay không được khởi chạy child thứ hai.</p>
+
+      <p>Trong lúc child run chạy, gửi heartbeat. Heartbeat đầu cũng acknowledge assignment. Cùng <code>progress-seq</code>, phase và summary chỉ làm mới liveness; sequence tăng mới làm mới progress. Sequence lùi hoặc cùng sequence nhưng nội dung khác sẽ bị từ chối:</p>
+
+      <pre><code>"$ACP" flock heartbeat --project /absolute/path/to/project \
+  --flock "$FLOCK_ID" --slot 0 --lease "$LEASE_ID" \
+  --progress-seq 1 --phase verifying \
+  --summary "focused validators running" --json</code></pre>
+
+      <p>Summary chỉ là diagnostic prose không đáng tin trong runtime state; nó không đi vào semantic snapshot của mother, top hay Sol. Sau khi child đủ điều kiện — low-risk ở <code>ready_for_review</code>/<code>accepted</code>, hoặc high-risk ở <code>accepted</code> — đóng attempt bằng EOF gắn đúng child run:</p>
+
+      <pre><code>"$ACP" flock finish --project /absolute/path/to/project \
+  --flock "$FLOCK_ID" --slot 0 --lease "$LEASE_ID" \
+  --outcome succeeded --reason child_run_verified \
+  --run "$CHILD_RUN_ID" \
+  --json</code></pre>
+
+      <p>Với success, controller kiểm tra project/base/config, exact <code>flock_attempt</code> lease envelope, child state, task, patch và green evidence. Nó re-hash task/patch/evidence, tự tạo một Flock-owned review pack mới rồi retain đúng các byte và digest do controller derive dưới flock store. Với child <code>accepted</code>, nó còn validate/retain review và human approval nếu high-risk. Không dùng <code>--artifact</code> cho success — caller-supplied digest bị từ chối. Các outcome khác là <code>retryable_failure</code>, <code>fatal_failure</code> và <code>cancelled</code>; chúng không dùng <code>--run</code> và có thể kèm hash diagnostic. Mỗi attempt có attempt EOF; task terminal có đúng một task EOF.</p>
+
+      <h3>6.4 Lease, leaf replacement, aggregate drain và DLQ</h3>
+      <p>Gọi sweep theo timer bên ngoài:</p>
+
+      <pre><code>"$ACP" flock sweep --project /absolute/path/to/project \
+  --flock "$FLOCK_ID" --json</code></pre>
+
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th>Sự kiện</th><th>Controller làm gì?</th><th>Phạm vi</th></tr></thead>
+          <tbody>
+            <tr><td>Soft liveness/progress expiry</td><td>Đánh dấu <code>soft_stalled</code>, tạo snapshot cho mother chọn <code>wait</code>, <code>recycle</code> hoặc <code>notify_top</code></td><td>Một task</td></tr>
+            <tr><td>Hard expiry</td><td>Tạo attempt EOF với <code>worker_eof_seen: false</code>, vào bounded retry</td><td>Thay đúng một slot</td></tr>
+            <tr><td>Crash/transient/controller loss</td><td>Cho phép retry tự động nếu còn attempt; delay mặc định 5/30 giây</td><td>Một task</td></tr>
+            <tr><td>Fatal/exhausted/dead-letter</td><td>Ghi trigger terminal, escalate, fence mọi sibling lease và cho mọi task chưa xong terminal EOF</td><td>Cả flock</td></tr>
+            <tr><td>&gt; 6 restart / 60 giây</td><td>Mở pool circuit, drain toàn aggregate rồi chuyển anomaly lên top</td><td>Cả flock</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p>Chỉ leaf failure còn retryable và chưa chạm circuit mới là <strong>one-for-one</strong>: slot đó tăng <code>incarnation</code>, còn sibling lease hợp lệ tiếp tục. Child tự báo <code>cancelled</code> sẽ escalate và drain flock; dùng <code>flock cancel</code> cho chủ ý huỷ toàn aggregate. Fatal, hết attempt/budget, explicit dead-letter hoặc pool/root circuit cũng là aggregate escalation: controller fence/drain mọi sibling lease đang sống và tạo terminal EOF cho mọi task chưa xong. Lease bind ID, coordinator epoch, slot và incarnation nên heartbeat/EOF đến trễ từ occupant cũ bị trả <code>stale_lease</code>. “DLQ” trong MVP là task EOF bền vững ở trạng thái <code>dead_lettered</code> cùng alert/outbox; không có message broker riêng.</p>
+
+      <p>Root recovery là trường hợp riêng, không phải leaf one-for-one. Chỉ sau khi external runtime đã dừng controller process cũ, đọc <code>coordinator_epoch</code> từ <code>flock status</code> rồi fence đúng generation đó bằng operation ID ổn định:</p>
+
+      <pre><code>"$ACP" flock recover --project /absolute/path/to/project \
+  --flock "$FLOCK_ID" --expected-epoch "$EXPECTED_EPOCH" \
+  --operation-id recover-controller-1 \
+  --reason coordinator_lost --json</code></pre>
+
+      <p><code>recover</code> không kill process. Nó đóng các lease active với lý do <code>controller_lost</code>, tăng coordinator epoch, cho sáu-slot subtree retry ở generation mới và re-issue semantic obligation của task không bị fence. Trong <code>final_review</code>, recovery là no-op idempotent và giữ nguyên review handoff. Retry cùng operation ID trả lại kết quả đã ghi; operation mới với expected epoch cũ bị <code>stale_recovery</code>. Quá ba root recovery trong 60 giây mặc định sẽ mở root circuit, escalate và drain toàn bộ sibling lease/task chưa xong. Không gọi lệnh này khi chưa chứng minh process cũ đã dừng, và không đổi operation ID chỉ để lách epoch mismatch.</p>
+
+      <h3>6.5 Dispatch DeepSeek stateless và chỉ đánh thức Sol khi cần</h3>
+      <p>Mỗi lệnh <code>supervisor dispatch</code> xử lý tối đa một snapshot pending của role:</p>
+
+      <pre><code>"$ACP" supervisor next --project /absolute/path/to/project \
+  --flock "$FLOCK_ID" --role mother --json
+
+"$ACP" supervisor dispatch --project /absolute/path/to/project \
+  --flock "$FLOCK_ID" --role mother \
+  --allow-unsafe-supervisor --json
+
+"$ACP" supervisor dispatch --project /absolute/path/to/project \
+  --flock "$FLOCK_ID" --role top \
+  --allow-unsafe-supervisor --json</code></pre>
+
+      <p>Mỗi lần dispatch atomically claim đúng một pending snapshot trước khi gọi model, nên dispatcher đồng thời không thể lặp cùng một semantic call. Delivery lỗi được thử tối đa ba lần với backoff 5 rồi 30 giây; lần thứ ba thất bại sẽ exhaust item, escalate Flock và mở event cho Sol. Claim hết hạn có thể được lấy lại, còn kết quả từ claimant cũ bị từ chối.</p>
+
+      <p>Mother có thể chọn các command được offer như <code>wait</code>, <code>recycle</code>, <code>retry_task</code>, <code>dead_letter</code>, <code>notify_top</code> hoặc no-op. Top chỉ có <code>ack</code>, <code>escalate_sol</code> và <code>open_final_review</code> khi mọi unit đã thành công và được báo cáo; Top không được <code>abort_flock</code>. Với <code>retry_wait</code> mơ hồ, <code>ack</code> của Top hoặc Sol sẽ authorize attempt hữu hạn tiếp theo. Action phải bind đúng snapshot ID, SHA-256, claim, command ID, subject revision, Flock revision, coordinator epoch và state; command tự thêm, claim cũ hoặc decision cũ phải fail closed.</p>
+
+      <p>Sol không được dispatch như external profile. Khi top mở escalation/final review, Codex/Sol control session poll:</p>
+
+      <pre><code>"$ACP" supervisor next --project /absolute/path/to/project \
+  --flock "$FLOCK_ID" --role sol --json</code></pre>
+
+      <p>Escalation offer <code>ack</code> hoặc <code>abort_flock</code>; aggregate final review offer <code>approve_flock</code>, <code>rework</code> hoặc <code>abort_flock</code>. Sol phải review task, patch, evidence và Flock-owned review pack đã đóng băng của các child run trước khi chọn và dùng <code>supervisor apply --file action.json</code>; action vẫn phải bind đúng command được snapshot offer. <code>approve_flock</code> re-hash toàn bộ retained artifact set rồi chuyển aggregate state sang <code>reviewed</code>, không phải <code>complete</code>. Nó không accept/integrate từng child và không apply patch; hai lựa chọn còn lại đi vào escalation.</p>
+
+      <h3>6.6 Giới hạn MVP và ví dụ chi phí cache</h3>
+      <div class="callout danger">
+        <strong>Chưa có combined patch pipeline</strong>
+        <p>Khi một child báo success bằng <code>--run</code>, Flock tự kiểm tra và giữ nguyên byte của task, patch, evidence, đồng thời tạo/giữ Flock-owned review pack cùng các digest do controller derive. Child <code>accepted</code> còn đóng góp review đã validate và human approval nếu cần. Khi mọi task thành công và đã báo Top, Flock tạo aggregate manifest gồm base, task hash, final attempt EOF và retained artifact set, với <code>combined_patch_created: false</code> và <code>combined_verification_run: false</code>. Flock chưa ghép/rebase patch child, xử lý conflict, chạy aggregate verifier, tạo combined review pack, accept/integrate từng child hay kiểm chứng acceptance ở mức tích hợp. Không có automatic apply, commit, push, merge, release hoặc deploy.</p>
+      </div>
+
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th>Dữ liệu trace</th><th>DeepSeek</th><th>Sol counterfactual</th></tr></thead>
+          <tbody>
+            <tr><td>Cache miss input: <code>42,650</code></td><td rowspan="3"><strong>$0.050690</strong></td><td>$0.213250</td></tr>
+            <tr><td>Cache read: <code>1,133,696</code></td><td>$0.566848</td></tr>
+            <tr><td>Output: <code>32,216</code></td><td>$0.966480</td></tr>
+            <tr><td><strong>Tổng / mức tiết kiệm minh họa</strong></td><td><strong>$0.050690</strong></td><td><strong>$1.746578 · tiết kiệm 97.10%</strong></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p>Tỷ lệ cache hit trên input của trace là <strong>96.37%</strong>: <code>1,133,696 / (1,133,696 + 42,650)</code>. Nếu tính cả output, cache-read chiếm <strong>93.805%</strong> tổng token: <code>1,133,696 / (42,650 + 1,133,696 + 32,216)</code>.</p>
+
+      <p class="small">Đây là một counterfactual trace theo mức giá giả định tại thời điểm tính, không phải benchmark hay cam kết. Giá, cache eligibility/hit rate, token accounting, prompt, routing và chất lượng model có thể đổi; cache share cao bất thường này không được bảo đảm. Chi phí thấp hơn không thay thế verifier, security gate hay final review của Sol. Hãy kiểm tra lại <a href="https://developers.openai.com/api/docs/models/gpt-5.6-sol" target="_blank" rel="noopener noreferrer">giá GPT-5.6 Sol</a> và <a href="https://api-docs.deepseek.com/quick_start/pricing/" target="_blank" rel="noopener noreferrer">giá DeepSeek</a> trước khi dùng số này làm forecast.</p>
+
+      <pre><code>"$ACP" flock cancel --project /absolute/path/to/project \
+  --flock "$FLOCK_ID" --json</code></pre>
     </section>
 
     <section id="van-hanh">
-      <h2>6. Chạy một vòng hoàn chỉnh</h2>
+      <h2>7. Chạy một single-run hoàn chỉnh</h2>
       <p class="section-intro">Luôn đọc JSON output và giữ chính xác <code>run_id</code> do controller trả về.</p>
 
       <h3>State flow chuẩn</h3>
@@ -704,7 +907,7 @@ git commit -m "chore: attach ducking"</code></pre>
     </section>
 
     <section id="review">
-      <h2>7. Review, human gate và tích hợp</h2>
+      <h2>8. Review, human gate và tích hợp</h2>
 
       <ol class="steps">
         <li>
@@ -769,7 +972,7 @@ git commit -m "chore: attach ducking"</code></pre>
     </section>
 
     <section id="social-match">
-      <h2>8. Ví dụ với <code>social_match</code></h2>
+      <h2>9. Ví dụ với <code>social_match</code></h2>
       <p class="section-intro">Adapter đã chuẩn bị cho project này dùng profile <code>default-implementer</code>, context kiến trúc/yêu cầu, protected/high-risk paths hẹp và các validation profile <code>docs</code>, <code>client</code>, <code>server</code>, <code>vertical-slice</code>, <code>migration</code>, <code>containers</code>.</p>
 
       <h3>8.1 Hoàn tất attach policy</h3>
@@ -826,7 +1029,7 @@ git -C "$PROJECT" diff -- AGENTS.md</code></pre>
     </section>
 
     <section id="xu-ly-loi">
-      <h2>9. Doctor và xử lý sự cố</h2>
+      <h2>10. Doctor và xử lý sự cố</h2>
 
       <details open>
         <summary><code>dirty_worktree</code>, <code>config_in_base: false</code>, <code>context_not_in_base</code></summary>
@@ -845,7 +1048,27 @@ git -C "$PROJECT" diff -- AGENTS.md</code></pre>
 
       <details>
         <summary><code>unsafe_worker_requires_opt_in</code> / <code>unsafe_validation_requires_opt_in</code></summary>
-        <div><p>Đây là gate chủ ý. Tốt nhất dựng external sandbox. Nếu human chấp nhận host execution, thêm đúng flag ở đúng bước. Flag không tăng mức cô lập.</p></div>
+        <div><p>Đây là gate chủ ý. Tốt nhất dựng external sandbox. Nếu child profile của Flock là <code>unsafe-host</code>, <code>flock init</code> cần <code>--allow-unsafe-worker</code>; mỗi child <code>run init</code> và validator vẫn có gate riêng. Nếu human chấp nhận host execution, thêm đúng flag ở đúng bước. Flag không tăng mức cô lập.</p></div>
+      </details>
+
+      <details>
+        <summary><code>unsafe_supervisor_requires_opt_in</code> hoặc semantic dispatch lỗi</summary>
+        <div><p><code>semantic_supervisor_unavailable</code> ở <code>flock init</code> nghĩa là probe mother/top profile thất bại; sửa executable, model ID, auth hoặc sandbox wrapper trước. Với profile <code>unsafe-host</code>, init cần <code>--allow-unsafe-supervisor</code> và mỗi dispatch sau đó vẫn cần flag này sau human authorization. Với <code>semantic_invalid_response</code>, <code>stale_decision</code> hoặc <code>invalid_semantic_command</code>, không tự sửa hash/command: giữ snapshot pending và dispatch lại bằng invocation stateless bind đúng snapshot, claim, hash, command, revisions, epoch và state. Delivery chỉ có ba attempt với backoff 5/30 giây; exhaustion tự escalate sang Sol. Top không có quyền abort.</p></div>
+      </details>
+
+      <details>
+        <summary><code>stale_lease</code>, progress collision hoặc Flock bị stall</summary>
+        <div><p>External runner phải dùng đúng tuple flock/slot/lease/incarnation từ assignment mới nhất. Assignment có <code>replayed: true</code> trước heartbeat đầu tiên phải reuse mapping đã persist, không launch child thứ hai; persist và deduplicate trước, heartbeat sau. Không nhận heartbeat/EOF trễ từ process cũ. Gọi <code>flock status</code>, chạy <code>flock sweep</code> theo timer, drain mother/top outbox, rồi <code>flock tick</code> lại khi retry đã được authorize và delay đã hết.</p></div>
+      </details>
+
+      <details>
+        <summary><code>unverified_child_result</code>, <code>child_not_ready_for_review</code>, <code>human_gate_required</code> hoặc success EOF mismatch</summary>
+        <div><p>Không thay <code>--run</code> bằng digest tự ghi. Hoàn tất đúng child run đã bind lease: low-risk cần green verification ở <code>ready_for_review</code>/<code>accepted</code>; high-risk phải qua per-child human gate đến <code>accepted</code>. Giữ nguyên run store rồi gọi lại <code>flock finish --run CHILD_RUN_ID</code>. Success không nhận <code>--artifact</code>; controller re-hash task/patch/evidence, tự tạo Flock-owned review pack và retain các artifact.</p></div>
+      </details>
+
+      <details>
+        <summary><code>stale_recovery</code></summary>
+        <div><p>Dừng và xác minh controller generation đang sống. Đọc epoch hiện tại từ <code>flock status</code>, rồi recover bằng đúng <code>--expected-epoch</code> và một <code>--operation-id</code> ổn định. Retry operation đã ghi bằng cùng ID; không đổi ID để lách stale epoch.</p></div>
       </details>
 
       <details>
@@ -880,7 +1103,7 @@ git -C "$PROJECT" diff -- AGENTS.md</code></pre>
     </section>
 
     <section id="checklist-cuoi">
-      <h2>10. Checklist trước khi bấm chạy</h2>
+      <h2>11. Checklist trước khi bấm chạy</h2>
       <ul class="checklist">
         <li>Project adapter và mọi instruction/context đã được human review + commit.</li>
         <li>Worktree sạch; task base SHA đúng bằng <code>HEAD</code>.</li>
@@ -889,7 +1112,13 @@ git -C "$PROJECT" diff -- AGENTS.md</code></pre>
         <li>Worker và validator có sandbox thật; nếu không, human đã cho phép rõ hai unsafe flag.</li>
         <li>OpenCode permission chặn external directory, commit/push và capability không cần thiết.</li>
         <li>Task có một objective, đường dẫn hẹp, tiêu chí có proof và budget hữu hạn.</li>
+        <li>Flock plan có DAG hợp lệ; profile unsafe đã được authorize riêng bằng <code>--allow-unsafe-worker</code> / <code>--allow-unsafe-supervisor</code> ở init và vẫn qua các gate invocation sau.</li>
+        <li>External runner persist lease ↔ child run, deduplicate assignment replay trước heartbeat và không hiểu <code>tick</code> là execution.</li>
+        <li>Heartbeat tăng sequence chỉ khi có progress; sweep và mother/top dispatch có timer bên ngoài.</li>
+        <li>Semantic supervisor stateless, snapshot-only, không nhận heartbeat summary; dispatch dùng claim, tối đa ba attempt với backoff 5/30 giây rồi escalate Sol.</li>
+        <li>Success EOF dùng <code>flock finish --run CHILD_RUN_ID</code>; high-risk child đã qua human gate đến <code>accepted</code>; không truyền <code>--artifact</code>.</li>
         <li>Sol chỉ review frozen pack và mọi decision gắn đúng hash.</li>
+        <li>Với Flock, Sol chỉ được gọi tại escalation/final review; <code>approve_flock</code> tạo state <code>reviewed</code>, chưa ghép patch, aggregate verify, accept child hay integrate.</li>
         <li>High-risk patch đi qua <code>human_required</code> và approval thật.</li>
         <li><code>integrate --dry-run</code> đạt trước <code>--apply</code>; human giữ quyền Git/release.</li>
       </ul>
@@ -897,7 +1126,7 @@ git -C "$PROJECT" diff -- AGENTS.md</code></pre>
   </main>
 
   <footer class="wrap">
-    Ducking · Hướng dẫn người dùng cho protocol v1 · Không cần JavaScript hay tài nguyên CSS bên ngoài.
+    Ducking · Hướng dẫn người dùng cho protocol v1 + Flock MVP · Không cần JavaScript hay tài nguyên CSS bên ngoài.
   </footer>
 </body>
 </html>

@@ -148,6 +148,30 @@ def create_independent_clone(repo_root: Path, base_sha: str, workspace: Path) ->
         raise
 
 
+def validate_isolated_branch_ref(repo_root: Path, branch_ref: str) -> str:
+    if not isinstance(branch_ref, str) or not branch_ref.startswith("ducking/"):
+        raise AgentCtlError(
+            "Flock branch must use the ducking/ namespace",
+            code="invalid_contract",
+        )
+    valid = _git(
+        ["check-ref-format", "--branch", branch_ref], cwd=repo_root, check=False
+    )
+    if valid.returncode != 0:
+        raise AgentCtlError("Invalid flock branch name", code="invalid_contract")
+    return branch_ref
+
+
+def create_isolated_branch(workspace: Path, branch_ref: str) -> None:
+    """Materialize a logical duck branch inside its independent clone.
+
+    No Git metadata is shared with the source repository or sibling ducks.
+    """
+
+    validate_isolated_branch_ref(workspace, branch_ref)
+    _git(["switch", "--quiet", "-c", branch_ref], cwd=workspace)
+
+
 def _intent_to_add_untracked(workspace: Path, prefix: Sequence[str] = ()) -> None:
     process = _git(
         [

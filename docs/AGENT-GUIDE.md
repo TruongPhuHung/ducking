@@ -1,21 +1,30 @@
 # Agent Operating Guide
 
 This guide is the normative operating protocol for a Sol-class planner/reviewer
-using `agentctl` to supervise a lower-cost CLI coding worker. The controller,
-not the worker transcript, owns run state and evidence.
+using `agentctl` to supervise lower-cost CLI coding workers. It covers both the
+single-task evidence pipeline and the OTP-inspired Flock MVP that coordinates
+multiple child runs. The deterministic controller, not a worker or semantic
+supervisor transcript, owns run state and evidence.
 
-In the Ducking model, Sol is the lead duck: it chooses the route through
-planning and semantic review. CLI workers are the flock: they follow one
-frozen task contract at a time and never choose their own scope or approve
-their own patch.
+In the Ducking model, Sol is the lead duck: it chooses the plan and performs
+required escalation/final review. CLI workers follow one frozen task contract
+at a time and never choose their own scope or approve their own patch. In Flock,
+stateless DeepSeek mother/top roles handle bounded routine semantic routing so
+normal orchestration does not keep a Sol conversation in the loop.
 
 ## 1. Authority and trust boundaries
 
 Keep these roles separate:
 
-- **Sol planner/reviewer:** reads project policy, writes the bounded task
-  contract, invokes `agentctl`, reviews the frozen patch and evidence, and
-  submits one semantic decision.
+- **Sol planner/reviewer:** reads project policy and freezes bounded task
+  contracts. In a single run it reviews and submits the semantic decision. In a
+  Flock it stays out of routine unit handling, then reviews the retained child
+  artifacts together at an escalation or aggregate final-review boundary. Its
+  Flock decision marks the aggregate `reviewed`, requests rework, or aborts; it
+  does not implicitly accept or integrate the child runs.
+- **DeepSeek mother/top supervisors (Flock only):** receive fresh, bounded
+  snapshots and select one controller-offered command. They have no memory,
+  patch authority, scope authority, or release authority.
 - **CLI worker:** may edit only its isolated run workspace to satisfy the
   frozen task. Treat its prose, claimed tests, and exit message as untrusted.
 - **Deterministic controller/verifier:** freezes hashes, derives the Git diff,
@@ -239,10 +248,377 @@ All path globs are anchored at the repository root. `*` never crosses `/`,
 while `**` does: `.env*` protects only root-level env files, so include
 `**/.env*` when nested env files must also be forbidden.
 
-The optional `schemas/plan.schema.json` can structure a multi-unit plan, but the
-current CLI initializes one task JSON at a time; there is no `plan` command.
+For one unit, continue with the single-run protocol below. For a dependency DAG,
+wrap complete task contracts in a Flock plan and use `flock init`; the Flock
+control layer does not weaken any child task boundary.
 
-## 7. Execute the state protocol
+## 7. Operate the OTP-inspired Flock MVP
+
+Use Flock only when several already-bounded units benefit from dependency-aware
+coordination. It is an OTP-inspired controller, not Erlang/OTP and not a daemon.
+The implementation divides runtime responsibility as follows:
+
+- `RuntimeSupervisor` deterministically owns flock state, coordinator epoch,
+  lease sweeps, alerts, restart intensity, and cancellation/escalation;
+- `MotherRuntime` deterministically assigns dependency-ready units to idle
+  logical slots when `flock tick` is called;
+- exactly six duck slots, IDs 0 through 5, exist for every flock; plans cannot
+  resize the pool, but external-runner capacity and the child project's
+  `max_parallel` policy may make physical concurrency lower than six;
+- the semantic `mother` and `top` are fresh DeepSeek invocations that select
+  from commands pre-authorized by the controller; neither is the deterministic
+  `MotherRuntime` scheduler;
+- Sol is outside that normal loop and is opened only for senior escalation or
+  aggregate final review.
+
+### 7.1 Freeze semantic profiles and install the read-only supervisor
+
+The user config must map both external semantic roles to existing profiles. The
+provided template intentionally maps both roles to the same DeepSeek profile:
+
+```toml
+[semantic_roles]
+mother = "deepseek-supervisor"
+top = "deepseek-supervisor"
+```
+
+The referenced profile uses the same provider-neutral `generic-cli` adapter as
+a worker, but its prompt requires one bound JSON action and its OpenCode agent is
+read-only. Install the supplied policy under the agent name used by the profile:
+
+```sh
+mkdir -p "$HOME/.config/opencode/agents"
+cp "$ACP_ROOT/templates/opencode-supervisor-agent.md" \
+  "$HOME/.config/opencode/agents/agentctl-supervisor.md"
+```
+
+Keep the exact provider/model ID, CLI argv, credentials, and isolation outside
+the plan. If the child implementation profile is `unsafe-host`, `flock init`
+requires `--allow-unsafe-worker`. If either semantic profile is `unsafe-host`,
+initialization requires `--allow-unsafe-supervisor`, and every later
+`supervisor dispatch` requires that flag again. These flags are separate,
+invocation-scoped acknowledgements. For unattended use, wrap the whole argv in
+a real sandbox before declaring `external-sandbox`.
+
+At `flock init`, the controller probes and freezes the child implementation
+profile and both semantic roles. Each semantic dispatch creates a fresh
+snapshot-only workspace. The snapshot is at most 16 KiB, excludes prior
+conversation, worker transcripts, heartbeat summaries, all other worker prose,
+and raw logs, and contains bounded controller facts plus an allowlist of command
+IDs. There is no model fallback and Sol is deliberately absent from
+`[semantic_roles]`.
+
+### 7.2 Author the multi-unit plan
+
+Start from `templates/plan.json` and validate against
+`schemas/plan.schema.json`. A Flock plan uses `contract_version: 2`, a stable
+`plan_id`, optional retry/lease policy, and `depends_on` on each complete unit.
+The nested unit contracts remain task contract version 1. Every unit must
+independently pass normal task validation and use the same `base_sha` as the
+plan. Dependencies must exist and form an acyclic graph.
+
+```json
+{
+  "contract_version": 2,
+  "plan_id": "profile-screen-flock",
+  "base_sha": "CURRENT_CLEAN_HEAD_SHA",
+  "goal": "Implement and document the approved profile screen slice.",
+  "assumptions": [],
+  "non_goals": ["No deployment", "No schema migration"],
+  "retry": {"max_attempts": 3, "delays_seconds": [5, 30]},
+  "lease": {
+    "liveness_soft_seconds": 45,
+    "liveness_hard_seconds": 90,
+    "progress_soft_seconds": 120,
+    "progress_hard_seconds": 600
+  },
+  "units": [
+    {
+      "contract_version": 1,
+      "task_id": "profile-api",
+      "base_sha": "CURRENT_CLEAN_HEAD_SHA",
+      "objective": "Implement the approved profile read endpoint.",
+      "acceptance": [
+        {"id": "api-1", "claim": "The endpoint passes its focused tests.", "proof": "test"}
+      ],
+      "non_goals": ["No client changes"],
+      "context_files": ["AGENTS.md", "docs/ARCHITECTURE.md"],
+      "allowed_paths": ["server/**"],
+      "forbidden_paths": [".agentctl.toml", ".env*", "**/.env*"],
+      "validation_profiles": ["server"],
+      "risk_flags": [],
+      "budget": {"wall_seconds": 1200, "max_fix_rounds": 1},
+      "depends_on": []
+    }
+  ]
+}
+```
+
+The pool size is not plan data. Defaults are three attempts, delays of 5 and 30
+seconds, liveness soft/hard thresholds of 45/90 seconds, and progress soft/hard
+thresholds of 120/600 seconds. `max_attempts` may not exceed 10. A unit's
+`budget.wall_seconds` is cumulative across its Flock attempts; exhausting it
+dead-letters the task even when an attempt count remains.
+
+### 7.3 Initialize and drive the deterministic control loop
+
+Initialization requires a clean attached project and a plan base equal to the
+current `HEAD`. It also requires the committed project adapter to match the
+loaded file, validates every unit's profiles/context, and probes the child plus
+both semantic runtimes before creating state:
+
+```sh
+"$ACP" flock init \
+  --project /absolute/path/to/project \
+  --plan /absolute/path/to/plan.json --json
+
+# Save the returned flock_id exactly as FLOCK_ID.
+"$ACP" flock status --project /absolute/path/to/project \
+  --flock "$FLOCK_ID" --json
+"$ACP" supervisor profiles --project /absolute/path/to/project \
+  --flock "$FLOCK_ID" --json
+```
+
+For a deliberately authorized all-`unsafe-host` prototype, initialization is:
+
+```sh
+"$ACP" flock init \
+  --project /absolute/path/to/project \
+  --plan /absolute/path/to/plan.json \
+  --allow-unsafe-worker --allow-unsafe-supervisor --json
+```
+
+Omit each unsafe flag only when the corresponding frozen argv enters a real
+external sandbox. Initialization authority does not carry into child
+`run init`, validation, or semantic dispatch; those commands retain their own
+gates.
+
+Call `tick` to lease currently ready units:
+
+```sh
+"$ACP" flock tick --project /absolute/path/to/project \
+  --flock "$FLOCK_ID" --json
+```
+
+**Important MVP boundary:** `tick` leases logical slots and returns assignment
+records. It does not spawn six processes or invoke a worker. An external runner
+must persist the assignment's `slot_id`, `duck_incarnation`, `lease_id`, and
+task contract; serialize that returned task unchanged outside the project; then
+drive its child pipeline:
+
+```text
+run init -> unit dispatch -> unit verify -> ready_for_review
+```
+
+A low-risk child may be handed to `flock finish` at `ready_for_review` or after
+its normal review reaches `accepted`. A high-risk child may not stop at green
+verification: submit its per-child `human_required` review and hash-bound human
+approval through the single-run protocol until its state is `accepted`, then
+report Flock success.
+
+Before the first heartbeat, `flock tick` replays the same unacknowledged
+assignment with `replayed: true`; it does not mint another lease. Persist the
+lease-to-child-run mapping first, deduplicate tick responses by lease ID, and
+only then heartbeat. Otherwise a runner crash can start a duplicate child or
+acknowledge delivery before it has saved the mapping.
+
+Use the execution commands and unsafe gates in section 8 for each child run.
+The runner must never report success merely because a worker exited zero. A
+normal Flock unit reaches success only through green deterministic evidence and
+the bound `flock finish --run CHILD_RUN_ID` check described below.
+
+The assignment task contains a controller-owned `flock_attempt` envelope. On
+the first `unit dispatch`, the child controller materializes its `branch_ref` as
+a local `ducking/...` branch inside that run's independent shallow clone. It
+does not create a branch in the source repository or share Git metadata with
+another duck. `depends_on` only gates when `tick` may issue the assignment; it
+does not apply an upstream patch to the downstream unit's frozen base. Until an
+external assembly/rebase layer exists, use dependencies for ordering and keep
+units patch-independent or have the operator explicitly manage that handoff.
+
+While a child pipeline runs, refresh liveness and report monotonic progress:
+
+```sh
+"$ACP" flock heartbeat --project /absolute/path/to/project \
+  --flock "$FLOCK_ID" --slot 0 --lease "$LEASE_ID" \
+  --progress-seq 1 --phase verifying --summary "focused validators running" --json
+```
+
+Repeating an identical sequence, phase, and summary is only a heartbeat;
+increasing `progress-seq` refreshes the progress clock. A lower sequence or the
+same sequence with different content is rejected. Summaries are bounded and
+must not contain secrets or raw logs. They are stored only as untrusted runtime
+diagnostics and are never copied into mother, top, or Sol semantic snapshots.
+
+After the eligible child has green evidence and is either low-risk
+`ready_for_review`/`accepted` or high-risk `accepted`, close the lease with an
+explicit attempt EOF bound to that child run:
+
+```sh
+"$ACP" flock finish --project /absolute/path/to/project \
+  --flock "$FLOCK_ID" --slot 0 --lease "$LEASE_ID" \
+  --outcome succeeded --reason child_run_verified \
+  --run "$CHILD_RUN_ID" --json
+```
+
+For success, the controller verifies the child project/base/config, exact
+`flock_attempt` lease envelope, task hash, eligible child state, patch hash, and
+green evidence. It re-hashes task/patch/evidence, creates a new Flock-owned
+review pack, and retains those exact bytes under the flock store. For an
+accepted child it also validates and retains the child review and any required
+high-risk human approval. The EOF receives controller-derived hashes. Do not
+pass `--artifact` on success; caller-supplied success digests are rejected.
+
+Other outcomes are `retryable_failure`, `fatal_failure`, and `cancelled`; they
+must not pass `--run` and may carry optional hash-only diagnostic artifacts.
+Every attempt gets an attempt EOF, and a terminal task gets one task EOF. A
+worker-reported cancellation escalates and drains the flock; use `flock cancel`
+for an intentional aggregate cancellation.
+
+### 7.4 Sweep leases, handle leaf replacement, and drain aggregate failures
+
+Run lease sweeps on an external timer or control loop:
+
+```sh
+"$ACP" flock sweep --project /absolute/path/to/project \
+  --flock "$FLOCK_ID" --json
+```
+
+Soft liveness/progress expiry marks one task `soft_stalled` and queues a mother
+snapshot. Hard expiry writes a synthetic attempt EOF with
+`worker_eof_seen: false`, releases that one slot, increments only that slot's
+incarnation, and enters retry handling. While a leaf failure remains retryable
+and below the restart circuit, replacement is one-for-one: other slots and
+valid leases continue. Cancellation terminates only that task and releases its
+slot; it does not schedule a replacement attempt or escalate the aggregate.
+
+Fatal failure, exhausted attempts or wall budget, semantic `dead_letter`, and
+an open pool/root circuit are aggregate escalation boundaries. The controller
+records the triggering terminal condition, fences and drains every active
+sibling lease, and gives every unfinished sibling a terminal escalated EOF. The
+DLQ is the durable terminal record plus its alert/top outbox item; the MVP does
+not run a separate message broker. More than six supervised restarts in the
+default 60-second window opens the pool circuit. A late heartbeat or EOF is
+rejected because a lease binds its ID, coordinator epoch, slot, and incarnation.
+
+Coordinator/root recovery is deliberately separate. Only after the external
+runtime has stopped the old controller processes, read `coordinator_epoch` from
+`flock status` and fence that exact generation with a stable operation ID:
+
+```sh
+"$ACP" flock recover --project /absolute/path/to/project \
+  --flock "$FLOCK_ID" --expected-epoch "$EXPECTED_EPOCH" \
+  --operation-id recover-controller-1 --reason coordinator_lost --json
+```
+
+This command does not kill anything. It closes all active leases as
+`controller_lost`, increments the coordinator epoch, and lets the six-slot
+subtree retry under the new generation. It re-issues pending semantic
+obligations for unaffected tasks against that epoch. During `final_review`,
+recovery is a recorded no-op and preserves the pending review. Retrying the same operation ID returns
+the recorded result; a new operation with a stale expected epoch fails with
+`stale_recovery`. More than three recoveries in the default 60-second window
+opens the root circuit and escalates. Never use `recover` as a substitute for
+proving that the old processes are gone, and never invent a new operation ID
+merely to bypass an epoch mismatch.
+
+Drain one pending mother/top snapshot per dispatch call:
+
+```sh
+"$ACP" supervisor next --project /absolute/path/to/project \
+  --flock "$FLOCK_ID" --role mother --json
+"$ACP" supervisor dispatch --project /absolute/path/to/project \
+  --flock "$FLOCK_ID" --role mother --allow-unsafe-supervisor --json
+"$ACP" supervisor dispatch --project /absolute/path/to/project \
+  --flock "$FLOCK_ID" --role top --allow-unsafe-supervisor --json
+```
+
+Omit the unsafe flag only when the frozen profile enters a real external
+sandbox. Before starting DeepSeek, dispatch atomically claims the snapshot.
+Another dispatcher cannot claim it until the claim expires; an older claimant
+cannot submit after a newer claim takes over. A failed delivery clears its
+claim, retries at most three times with 5- then 30-second backoff, and on the
+third failure marks the item exhausted, escalates the flock, and queues Sol.
+
+DeepSeek can select only the offered, hash-bound command at the current subject
+and flock revisions, coordinator epoch, and flock state. Mother commands include
+`wait`, `recycle`, `retry_task`, `dead_letter`, `notify_top`, and bounded no-ops.
+Top commands include only `ack`, `escalate_sol`, and `open_final_review` when
+the aggregate is ready. For an ambiguous `retry_wait`, Top or Sol `ack`
+authorizes the next bounded attempt. Top DeepSeek is never authorized to select
+`abort_flock`. For manual or alternate semantic delivery, inspect `supervisor
+next`, construct the exact bound action, and apply it with:
+
+```sh
+"$ACP" supervisor apply --project /absolute/path/to/project \
+  --flock "$FLOCK_ID" --file /absolute/path/to/action.json --json
+```
+
+Do not manufacture or broaden an allowed command. A stale snapshot hash,
+delivery claim, command ID, subject/flock revision, coordinator epoch, or flock
+state must fail closed.
+
+Poll Sol only after top routing opens that path:
+
+```sh
+"$ACP" supervisor next --project /absolute/path/to/project \
+  --flock "$FLOCK_ID" --role sol --json
+```
+
+Sol handles only senior escalation and aggregate final review. It does not
+replace normal `tick`, `heartbeat`, `sweep`, retry, mother, or top processing.
+At final review, the offered commands are `approve_flock`, `rework`, and
+`abort_flock`; an escalation offers `ack` or `abort_flock`. Apply the selected
+bound action through `supervisor apply`. Review the retained child task, patch,
+evidence, and Flock-owned review pack plus the aggregate manifest before
+choosing.
+`approve_flock` re-hashes the retained set and marks the terminal aggregate
+state `reviewed`, not `complete`. It does not accept or integrate any child run,
+and it creates no combined patch or aggregate verification. `rework` and
+`abort_flock` take the flock to escalation.
+
+Continue `tick`, child execution, sweep, and semantic dispatch until the
+operator reaches the appropriate review/escalation boundary. Cancel explicitly
+when required:
+
+```sh
+"$ACP" flock cancel --project /absolute/path/to/project \
+  --flock "$FLOCK_ID" --json
+```
+
+### 7.5 Current non-goals and the cost illustration
+
+The Flock MVP retains verified task/patch/evidence bytes and creates a
+Flock-owned review pack for each successful child. It additionally retains the
+validated child review and required human approval when a child is accepted,
+but it does **not** assemble those patches in
+dependency order, rebase them, resolve conflicts, run an aggregate verifier, or
+produce a combined patch/review pack. State `reviewed` is not integration
+eligibility. There is no automatic child decision, apply, integration, commit,
+push, merge, release, or deploy; Sol and the human receive retained evidence,
+not a release artifact.
+
+One recorded cached-context comparison contained 42,650 cache-miss input
+tokens, 1,133,696 cache-read tokens, and 32,216 output tokens. At that trace's
+assumed rates, DeepSeek cost **$0.050690**. The same token mix priced as a Sol
+counterfactual cost **$1.746578**: $0.213250 miss input, $0.566848 cached input,
+and $0.966480 output. The illustrative saving is **97.10%**.
+
+The trace's input cache-hit ratio is **96.37%**:
+`1,133,696 / (1,133,696 + 42,650)`. Cache-read tokens are **93.805%** of all
+counted tokens including output:
+`1,133,696 / (42,650 + 1,133,696 + 32,216)`.
+
+Treat this as one counterfactual, not a benchmark or promise. Prices, cache
+eligibility and hit rate, token accounting, prompts, routing, and quality may
+change, and this unusually high cache share is not guaranteed. Cost never
+overrides deterministic evidence, security gates, or Sol's required
+escalation/final review. Recalculate with current
+[GPT-5.6 Sol pricing](https://developers.openai.com/api/docs/models/gpt-5.6-sol)
+and [DeepSeek pricing](https://api-docs.deepseek.com/quick_start/pricing/)
+before using the example as a budget forecast.
+
+## 8. Execute the single-run state protocol
 
 Initialize from a clean, committed base:
 
@@ -302,7 +678,7 @@ Inspect status or request cancellation with:
 During dispatch or verification, cancellation is cooperative and returns
 `cancel_requested`; poll status until the process exits.
 
-## 8. Review only frozen artifacts
+## 9. Review only frozen artifacts
 
 After `ready_for_review`, build the pack:
 
@@ -362,7 +738,7 @@ or email address.
 
 Agents must not manufacture human identity, rationale, or approval.
 
-## 9. Integrate, then hand control to the human
+## 10. Integrate, then hand control to the human
 
 Always check first; omitting both mode flags is also a dry run:
 
@@ -381,7 +757,7 @@ The returned result explicitly reports `committed: false` and `pushed: false`.
 Stop after presenting the worktree diff and validation evidence. The human owns
 all subsequent Git and release operations.
 
-## 10. `social_match` example
+## 11. `social_match` example
 
 The prepared `social_match/.agentctl.toml` uses `default-implementer`, committed
 project instructions/context, narrow protected/high-risk paths, and profiles
@@ -417,7 +793,7 @@ the prepared adapter declares `unsafe-host`. Do not reinterpret those warnings
 as sandboxing. Install the required project tools or use a real external
 sandbox, and obtain explicit human authority before either unsafe flag.
 
-## 11. Troubleshooting map
+## 12. Troubleshooting map
 
 - `dirty_worktree`: commit or otherwise resolve all intended human changes;
   never discard unrelated work automatically.
@@ -432,7 +808,41 @@ sandbox, and obtain explicit human authority before either unsafe flag.
   copy the exact ID from `opencode models`; `doctor` does not validate it.
 - `unsafe_worker_requires_opt_in` or `unsafe_validation_requires_opt_in`: use a
   real sandbox, or stop for explicit human authority before adding the named
-  flag.
+  flag. Flock checks the child worker at `flock init`, and each child `run init`
+  remains a separate unsafe gate.
+- `unsafe_supervisor_requires_opt_in`: the frozen mother/top profile executes
+  directly on the host. `flock init` and every later `supervisor dispatch`
+  require explicit authority. Use a real sandbox for unattended automation.
+- `semantic_supervisor_unavailable`: `flock init` could not probe a configured
+  mother/top runtime. Fix the referenced profile, executable, model identity,
+  authentication, or sandbox wrapper before creating the flock.
+- `stale_lease`, `stale_progress`, or `progress_seq_collision`: the external
+  runner used an old slot/lease/incarnation tuple, moved the progress sequence
+  backwards, or changed content without incrementing it. Reload `flock status`
+  and never let an old child process close a replacement lease.
+- repeated assignment with `replayed: true`: no heartbeat has acknowledged that
+  lease yet. Reuse the persisted lease-to-run mapping; do not start a duplicate
+  child. Persist first and heartbeat second.
+- `unverified_child_result`, `child_not_ready_for_review`, `human_gate_required`,
+  `review_mismatch`, or `evidence_failed` on successful `flock finish`: do not
+  replace `--run` with hand-written digests. Complete the exact lease-bound
+  low-risk child through green verification (`ready_for_review` or `accepted`),
+  or the high-risk child through its per-child hash-bound gate to `accepted`.
+  Preserve that child store and retry with the same child run ID.
+- `stale_recovery`: the current coordinator epoch differs from
+  `--expected-epoch`. Do not bypass the fence with a new operation ID; inspect
+  status and establish which controller generation is alive. Retry an already
+  completed recovery only with its original operation ID.
+- `semantic_invalid_response`, `stale_decision`, or
+  `invalid_semantic_command`: preserve the pending snapshot and retry with a
+  fresh stateless invocation bound to its exact ID, claim, hash, offered command
+  ID, revisions, epoch, and state. Delivery uses at most three attempts with
+  5/30-second backoff; exhaustion escalates to Sol. Never broaden the command,
+  let top abort, or copy hashes around the gate.
+- Flock has ready work but no execution: `flock tick` only returned logical
+  assignments. Check the external runner, its lease-to-child-run mapping,
+  heartbeat timer, `flock sweep`, and pending mother/top outbox; there is no
+  resident process launcher in the MVP.
 - `unknown_validation_profile` or `no_profiled_validation_for_path`: align the
   task profiles and changed-path match rules with `.agentctl.toml`.
 - `verify_failed`: inspect `evidence.json` and verifier log hashes; dispatch a

@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from agentctl.config import load_project_config
+from agentctl.config import load_project_config, load_user_config
 from agentctl.errors import AgentCtlError
 
 
@@ -26,6 +26,23 @@ profiles = ["always"]
 match = ["**"]
 cwd = "."
 argv = ["git", "diff", "--check"]
+'''
+
+
+VALID_USER_CONFIG = '''schema_version = 1
+
+[worker_profiles.supervisor]
+adapter = "generic-cli"
+argv = ["/usr/bin/true", "{workspace}", "{request_file}"]
+probe_argv = ["/usr/bin/true", "--version"]
+probe_contains = "not invoked"
+env_allow = []
+isolation = "unsafe-host"
+runtime_id = "test-supervisor"
+
+[semantic_roles]
+mother = "supervisor"
+top = "supervisor"
 '''
 
 
@@ -59,6 +76,29 @@ class ConfigTests(unittest.TestCase):
             (root / ".agentctl.toml").symlink_to(target)
             with self.assertRaisesRegex(AgentCtlError, "regular file"):
                 load_project_config(root)
+
+    def test_user_config_maps_semantic_roles_to_profiles(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "config.toml"
+            path.write_text(VALID_USER_CONFIG, encoding="utf-8")
+
+            config = load_user_config(path)
+
+        self.assertEqual(
+            config.semantic_roles,
+            {"mother": "supervisor", "top": "supervisor"},
+        )
+
+    def test_user_config_rejects_unknown_semantic_profile(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "config.toml"
+            path.write_text(
+                VALID_USER_CONFIG.replace('top = "supervisor"', 'top = "missing"'),
+                encoding="utf-8",
+            )
+
+            with self.assertRaisesRegex(AgentCtlError, "unknown worker profile"):
+                load_user_config(path)
 
 
 if __name__ == "__main__":

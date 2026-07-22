@@ -1,0 +1,37 @@
+{
+  "contract_version": 2,
+  "plan_id": "example-flock",
+  "base_sha": "replace-with-current-head-sha",
+  "goal": "Deliver a bounded multi-unit change through six supervised duck slots.",
+  "assumptions": [],
+  "non_goals": ["No automatic commit, push, merge, or deploy"],
+  "retry": {
+    "max_attempts": 3,
+    "delays_seconds": [5, 30]
+  },
+  "lease": {
+    "liveness_soft_seconds": 45,
+    "liveness_hard_seconds": 90,
+    "progress_soft_seconds": 120,
+    "progress_hard_seconds": 600
+  },
+  "units": [
+    {
+      "contract_version": 1,
+      "task_id": "unit-one",
+      "base_sha": "replace-with-current-head-sha",
+      "objective": "Implement one atomic change.",
+      "acceptance": [
+        {"id": "ac1", "claim": "The atomic behavior works.", "proof": "test"}
+      ],
+      "non_goals": [],
+      "context_files": ["AGENTS.md"],
+      "allowed_paths": ["src/**", "tests/**"],
+      "forbidden_paths": [".env*", "**/.env*", ".github/**"],
+      "validation_profiles": ["default"],
+      "risk_flags": [],
+      "depends_on": [],
+      "budget": {"wall_seconds": 1500, "max_fix_rounds": 2}
+    }
+  ]
+}

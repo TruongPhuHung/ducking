@@ -14,9 +14,11 @@ from .util import (
 
 
 SUPPORTED_CONTRACT_VERSION = 1
+SUPPORTED_PLAN_VERSION = 2
 SHA_RE = re.compile(r"^[0-9a-fA-F]{7,64}$")
 PATCH_SHA_RE = re.compile(r"^[0-9a-f]{64}$")
 DECISIONS = {"accept", "repair", "replan", "human_required"}
+SEMANTIC_ROLES = {"mother", "top", "sol"}
 
 
 def _require_object(value: Any, field: str) -> dict[str, Any]:
@@ -50,6 +52,15 @@ def _require_non_negative_int(value: Any, field: str) -> int:
             f"{field} must be a non-negative integer", code="invalid_contract"
         )
     return value
+
+
+def _require_positive_int(value: Any, field: str) -> int:
+    result = _require_non_negative_int(value, field)
+    if result == 0:
+        raise AgentCtlError(
+            f"{field} must be greater than zero", code="invalid_contract"
+        )
+    return result
 
 
 def _require_sha256(value: Any, field: str) -> str:
@@ -135,11 +146,224 @@ def validate_task(value: Any) -> dict[str, Any]:
         )
     for optional_field in ("non_goals", "risk_flags"):
         _require_string_array(task.get(optional_field, []), optional_field)
+    if "flock_attempt" in task:
+        attempt = _require_object(task["flock_attempt"], "flock_attempt")
+        fields = {
+            "flock_id",
+            "lease_id",
+            "coordinator_epoch",
+            "slot_id",
+            "duck_incarnation",
+            "contract_sha256",
+            "branch_ref",
+        }
+        if set(attempt) != fields:
+            raise AgentCtlError(
+                "flock_attempt must contain exactly the lease envelope fields",
+                code="invalid_contract",
+            )
+        require_identifier(attempt["flock_id"], "flock_attempt.flock_id")
+        require_identifier(attempt["lease_id"], "flock_attempt.lease_id")
+        _require_positive_int(
+            attempt["coordinator_epoch"], "flock_attempt.coordinator_epoch"
+        )
+        slot_id = _require_non_negative_int(
+            attempt["slot_id"], "flock_attempt.slot_id"
+        )
+        if slot_id > 5:
+            raise AgentCtlError(
+                "flock_attempt.slot_id must be between 0 and 5",
+                code="invalid_contract",
+            )
+        _require_positive_int(
+            attempt["duck_incarnation"], "flock_attempt.duck_incarnation"
+        )
+        _require_sha256(
+            attempt["contract_sha256"], "flock_attempt.contract_sha256"
+        )
+        branch_ref = _require_string(
+            attempt["branch_ref"], "flock_attempt.branch_ref"
+        )
+        if not branch_ref.startswith("ducking/") or any(
+            character.isspace() or ord(character) < 32 for character in branch_ref
+        ):
+            raise AgentCtlError(
+                "flock_attempt.branch_ref must be a ducking/ Git ref without whitespace",
+                code="invalid_contract",
+            )
     return task
 
 
 def load_task(path: Path) -> dict[str, Any]:
     return validate_task(read_json(path))
+
+
+def validate_plan(value: Any) -> dict[str, Any]:
+    """Validate a frozen multi-unit flock plan.
+
+    The six-duck pool is a runtime invariant. Plans describe atomic work and
+    dependencies; they never name providers, model IDs, or process settings.
+    """
+
+    plan = _require_object(value, "plan")
+    if plan.get("contract_version") != SUPPORTED_PLAN_VERSION:
+        raise AgentCtlError(
+            f"Unsupported plan contract version: {plan.get('contract_version')}",
+            code="unsupported_schema",
+        )
+    require_identifier(plan.get("plan_id"), "plan_id")
+    base_sha = _require_string(plan.get("base_sha"), "base_sha")
+    if not SHA_RE.fullmatch(base_sha):
+        raise AgentCtlError(
+            "base_sha must be a 7-64 character hexadecimal Git object ID",
+            code="invalid_contract",
+        )
+    _require_string(plan.get("goal"), "goal")
+    for field in ("assumptions", "non_goals"):
+        _require_string_array(plan.get(field, []), field)
+
+    units = plan.get("units")
+    if not isinstance(units, list) or not units:
+        raise AgentCtlError(
+            "units must contain at least one atomic task", code="invalid_contract"
+        )
+    task_ids: set[str] = set()
+    dependencies: dict[str, list[str]] = {}
+    for index, unit_value in enumerate(units):
+        unit = validate_task(unit_value)
+        task_id = unit["task_id"]
+        if task_id in task_ids:
+            raise AgentCtlError(
+                f"Duplicate plan task: {task_id}", code="invalid_contract"
+            )
+        task_ids.add(task_id)
+        if unit["base_sha"].lower() != base_sha.lower():
+            raise AgentCtlError(
+                f"units[{index}].base_sha must match plan.base_sha",
+                code="invalid_contract",
+            )
+        depends_on = _require_string_array(
+            unit.get("depends_on", []), f"units[{index}].depends_on"
+        )
+        normalized: list[str] = []
+        for dependency in depends_on:
+            normalized.append(
+                require_identifier(dependency, f"units[{index}].depends_on")
+            )
+        if len(normalized) != len(set(normalized)):
+            raise AgentCtlError(
+                f"units[{index}].depends_on contains duplicates",
+                code="invalid_contract",
+            )
+        dependencies[task_id] = normalized
+
+    for task_id, values in dependencies.items():
+        for dependency in values:
+            if dependency == task_id:
+                raise AgentCtlError(
+                    f"Task {task_id} cannot depend on itself",
+                    code="invalid_contract",
+                )
+            if dependency not in task_ids:
+                raise AgentCtlError(
+                    f"Task {task_id} has unknown dependency: {dependency}",
+                    code="invalid_contract",
+                )
+
+    visiting: set[str] = set()
+    visited: set[str] = set()
+
+    def visit(task_id: str) -> None:
+        if task_id in visiting:
+            raise AgentCtlError(
+                f"Plan dependencies contain a cycle at {task_id}",
+                code="invalid_contract",
+            )
+        if task_id in visited:
+            return
+        visiting.add(task_id)
+        for dependency in dependencies[task_id]:
+            visit(dependency)
+        visiting.remove(task_id)
+        visited.add(task_id)
+
+    for task_id in dependencies:
+        visit(task_id)
+
+    retry = _require_object(plan.get("retry", {}), "retry")
+    max_attempts = _require_positive_int(
+        retry.get("max_attempts", 3), "retry.max_attempts"
+    )
+    if max_attempts > 10:
+        raise AgentCtlError(
+            "retry.max_attempts must be <= 10", code="invalid_contract"
+        )
+    delays = retry.get("delays_seconds", [5, 30])
+    if not isinstance(delays, list) or not delays:
+        raise AgentCtlError(
+            "retry.delays_seconds must be a non-empty array",
+            code="invalid_contract",
+        )
+    for index, delay in enumerate(delays):
+        _require_non_negative_int(delay, f"retry.delays_seconds[{index}]")
+
+    lease = _require_object(plan.get("lease", {}), "lease")
+    liveness_soft = _require_positive_int(
+        lease.get("liveness_soft_seconds", 45),
+        "lease.liveness_soft_seconds",
+    )
+    liveness_hard = _require_positive_int(
+        lease.get("liveness_hard_seconds", 90),
+        "lease.liveness_hard_seconds",
+    )
+    progress_soft = _require_positive_int(
+        lease.get("progress_soft_seconds", 120),
+        "lease.progress_soft_seconds",
+    )
+    progress_hard = _require_positive_int(
+        lease.get("progress_hard_seconds", 600),
+        "lease.progress_hard_seconds",
+    )
+    if liveness_soft >= liveness_hard or progress_soft >= progress_hard:
+        raise AgentCtlError(
+            "Each soft lease threshold must be lower than its hard threshold",
+            code="invalid_contract",
+        )
+    return plan
+
+
+def load_plan(path: Path) -> dict[str, Any]:
+    return validate_plan(read_json(path))
+
+
+def validate_semantic_action(value: Any) -> dict[str, Any]:
+    action = _require_object(value, "semantic action")
+    required_fields = {
+        "contract_version",
+        "snapshot_id",
+        "snapshot_sha256",
+        "selected_command_id",
+        "reason_code",
+    }
+    if set(action) != required_fields:
+        raise AgentCtlError(
+            "semantic action must contain exactly the schema-defined fields",
+            code="invalid_contract",
+        )
+    if action.get("contract_version") != SUPPORTED_CONTRACT_VERSION:
+        raise AgentCtlError(
+            f"Unsupported semantic action version: {action.get('contract_version')}",
+            code="unsupported_schema",
+        )
+    require_identifier(action.get("snapshot_id"), "snapshot_id")
+    _require_sha256(action.get("snapshot_sha256"), "snapshot_sha256")
+    require_identifier(action.get("selected_command_id"), "selected_command_id")
+    require_identifier(action.get("reason_code"), "reason_code")
+    return action
+
+
+def load_semantic_action(path: Path) -> dict[str, Any]:
+    return validate_semantic_action(read_json(path))
 
 
 def validate_review(value: Any) -> dict[str, Any]:

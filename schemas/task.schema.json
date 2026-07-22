@@ -40,6 +40,33 @@
     "forbidden_paths": {"type": "array", "items": {"type": "string"}},
     "validation_profiles": {"type": "array", "minItems": 1, "items": {"type": "string"}},
     "risk_flags": {"type": "array", "items": {"type": "string"}},
+    "depends_on": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"type": "string", "pattern": "^[a-z0-9][a-z0-9._-]{0,127}$"}
+    },
+    "flock_attempt": {
+      "type": "object",
+      "required": [
+        "flock_id",
+        "lease_id",
+        "coordinator_epoch",
+        "slot_id",
+        "duck_incarnation",
+        "contract_sha256",
+        "branch_ref"
+      ],
+      "properties": {
+        "flock_id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9._-]{0,127}$"},
+        "lease_id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9._-]{0,127}$"},
+        "coordinator_epoch": {"type": "integer", "minimum": 1},
+        "slot_id": {"type": "integer", "minimum": 0, "maximum": 5},
+        "duck_incarnation": {"type": "integer", "minimum": 1},
+        "contract_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "branch_ref": {"type": "string", "pattern": "^ducking/[^\\s]+$"}
+      },
+      "additionalProperties": false
+    },
     "budget": {
       "type": "object",
       "required": ["wall_seconds", "max_fix_rounds"],
