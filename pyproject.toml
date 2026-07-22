@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ducking"
-version = "0.2.0"
+version = "0.3.0"
 description = "Lead a coordinated flock of supervised CLI coding workers"
 requires-python = ">=3.11"
 dependencies = []
@@ -14,3 +14,6 @@ agentctl = "agentctl.cli:main"
 
 [tool.setuptools]
 packages = ["agentctl"]
+
+[tool.setuptools.package-data]
+agentctl = ["dashboard.html"]

@@ -1,0 +1,360 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ducking · Flock Control</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #f5f1e8;
+      --surface: #fffdf8;
+      --surface-2: #ebe5d8;
+      --text: #25231f;
+      --muted: #6f6a60;
+      --line: #d9d1c2;
+      --brand: #276c5b;
+      --brand-soft: #dcebe4;
+      --warn: #9a5b11;
+      --warn-soft: #f6e6c9;
+      --danger: #a13c32;
+      --danger-soft: #f5ded9;
+      --idle: #77736c;
+      --shadow: 0 12px 34px rgba(58, 45, 24, .08);
+      --radius: 18px;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #171a18;
+        --surface: #202521;
+        --surface-2: #2a302b;
+        --text: #f1eee5;
+        --muted: #b5b0a6;
+        --line: #3b433d;
+        --brand: #76c7aa;
+        --brand-soft: #263f36;
+        --warn: #efb867;
+        --warn-soft: #49351e;
+        --danger: #ee8f84;
+        --danger-soft: #4b2927;
+        --idle: #aaa59c;
+        --shadow: 0 14px 38px rgba(0, 0, 0, .2);
+      }
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--text); }
+    button, input { font: inherit; }
+    button {
+      border: 1px solid var(--line); border-radius: 10px; padding: 9px 13px;
+      color: var(--text); background: var(--surface); cursor: pointer;
+    }
+    button:hover:not(:disabled) { border-color: var(--brand); }
+    button:focus-visible { outline: 3px solid color-mix(in srgb, var(--brand) 35%, transparent); outline-offset: 2px; }
+    button:disabled { opacity: .45; cursor: not-allowed; }
+    button.primary { color: #fff; background: #276c5b; border-color: #276c5b; }
+    button.danger { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 45%, var(--line)); }
+    code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    .app { width: min(1480px, 100%); margin: 0 auto; padding: 20px; }
+    .topbar { display: flex; gap: 18px; justify-content: space-between; align-items: flex-start; margin-bottom: 18px; }
+    h1 { font-size: clamp(24px, 4vw, 36px); line-height: 1.05; margin: 0 0 7px; font-weight: 700; letter-spacing: -.03em; }
+    h2 { margin: 0; font-size: 17px; }
+    .subtitle, .muted { color: var(--muted); }
+    .subtitle { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 14px; }
+    .connection { display: inline-flex; align-items: center; gap: 6px; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--idle); }
+    .dot.live { background: var(--brand); box-shadow: 0 0 0 4px color-mix(in srgb, var(--brand) 16%, transparent); }
+    .controls { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+    .summary { display: grid; grid-template-columns: repeat(4, minmax(150px, 1fr)); gap: 12px; margin-bottom: 20px; }
+    .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); }
+    .stat { padding: 16px; }
+    .stat-label { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .08em; }
+    .stat-value { font-size: 24px; line-height: 1.2; margin-top: 6px; font-weight: 700; }
+    .stat-meta { color: var(--muted); font-size: 12px; margin-top: 4px; }
+    .section { margin: 22px 0; }
+    .section-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+    .section-head span { color: var(--muted); font-size: 13px; }
+    .duck-grid { display: grid; grid-template-columns: repeat(6, minmax(145px, 1fr)); gap: 10px; }
+    .duck { position: relative; min-height: 170px; padding: 14px; overflow: hidden; }
+    .duck.active { border-color: color-mix(in srgb, var(--brand) 48%, var(--line)); }
+    .duck-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .duck-icon { font-size: 27px; filter: saturate(.85); }
+    .slot { color: var(--muted); font-size: 12px; }
+    .duck-task { margin: 15px 0 5px; font-weight: 700; overflow-wrap: anywhere; }
+    .duck-meta { color: var(--muted); font-size: 12px; line-height: 1.55; }
+    .progress-track { height: 5px; border-radius: 999px; background: var(--surface-2); margin-top: 13px; overflow: hidden; }
+    .progress-track span { display: block; height: 100%; width: 0; background: var(--brand); transition: width .3s ease; }
+    .active .duck-icon { animation: bob 1.8s ease-in-out infinite; }
+    @keyframes bob { 50% { transform: translateY(-3px) rotate(-2deg); } }
+    @media (prefers-reduced-motion: reduce) { .active .duck-icon { animation: none; } * { scroll-behavior: auto !important; transition: none !important; } }
+    .badge { display: inline-flex; align-items: center; border-radius: 999px; padding: 4px 8px; font-size: 11px; background: var(--surface-2); color: var(--muted); white-space: nowrap; }
+    .badge.good { color: var(--brand); background: var(--brand-soft); }
+    .badge.warn { color: var(--warn); background: var(--warn-soft); }
+    .badge.bad { color: var(--danger); background: var(--danger-soft); }
+    .main-grid { display: grid; grid-template-columns: minmax(0, 1.65fr) minmax(290px, .7fr); gap: 14px; }
+    .main-grid > * { min-width: 0; }
+    .panel { padding: 16px; min-width: 0; }
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+    th { color: var(--muted); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; }
+    tr:last-child td { border-bottom: 0; }
+    .budget { min-width: 100px; }
+    .budget-line { display: flex; justify-content: space-between; color: var(--muted); font-size: 11px; }
+    .semantic-flow { display: grid; grid-template-columns: 1fr auto 1fr auto 1fr; align-items: center; gap: 7px; margin-top: 14px; }
+    .semantic-node { padding: 13px 9px; text-align: center; border-radius: 12px; background: var(--surface-2); }
+    .semantic-node strong { display: block; font-size: 22px; margin-bottom: 2px; }
+    .arrow { color: var(--muted); }
+    .pending-list, .timeline { list-style: none; padding: 0; margin: 13px 0 0; }
+    .pending-list li, .timeline li { border-top: 1px solid var(--line); padding: 10px 0; }
+    .pending-list li:first-child, .timeline li:first-child { border-top: 0; }
+    .pending-title { display: flex; justify-content: space-between; gap: 10px; }
+    .pending-sub { color: var(--muted); font-size: 12px; margin-top: 3px; overflow-wrap: anywhere; }
+    .timeline { max-height: 420px; overflow-y: auto; }
+    .timeline-head { display: flex; gap: 8px; align-items: center; }
+    .timeline-time { margin-left: auto; color: var(--muted); font-size: 11px; }
+    .facts { color: var(--muted); font-size: 12px; margin-top: 4px; overflow-wrap: anywhere; }
+    .action-result { min-height: 20px; margin-top: 10px; color: var(--muted); font-size: 12px; text-align: right; }
+    .action-result.error { color: var(--danger); }
+    .empty { color: var(--muted); padding: 14px 0; font-size: 13px; }
+    @media (max-width: 1080px) {
+      .duck-grid { grid-template-columns: repeat(3, 1fr); }
+      .main-grid { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 700px) {
+      .app { padding: 14px; }
+      .topbar { flex-direction: column; }
+      .controls { justify-content: flex-start; }
+      .summary { grid-template-columns: repeat(2, 1fr); }
+      .duck-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+    @media (max-width: 420px) {
+      .summary, .duck-grid { grid-template-columns: 1fr; }
+      .semantic-flow { grid-template-columns: 1fr; }
+      .arrow { transform: rotate(90deg); text-align: center; }
+    }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <header class="topbar">
+      <div>
+        <h1>🦆 Ducking control</h1>
+        <div class="subtitle">
+          <code id="flock-id">—</code>
+          <span>·</span>
+          <span class="connection"><span class="dot" id="live-dot"></span><span id="connection-label">Đang kết nối</span></span>
+          <span>·</span>
+          <span id="observed-at">—</span>
+        </div>
+      </div>
+      <div>
+        <div class="controls" aria-label="Flock actions">
+          <button type="button" id="tick-btn" class="primary">Tick</button>
+          <button type="button" id="sweep-btn">Sweep leases</button>
+          <button type="button" id="mother-btn">Run Mother</button>
+          <button type="button" id="top-btn">Run Top</button>
+          <button type="button" id="cancel-btn" class="danger">Cancel flock</button>
+        </div>
+        <div class="action-result" id="action-result" aria-live="polite"></div>
+      </div>
+    </header>
+
+    <section class="summary" aria-label="Flock summary">
+      <article class="card stat"><div class="stat-label">Aggregate</div><div class="stat-value" id="aggregate-state">—</div><div class="stat-meta" id="aggregate-meta">—</div></article>
+      <article class="card stat"><div class="stat-label">Ducks active</div><div class="stat-value" id="active-ducks">—</div><div class="stat-meta">fixed pool · 6 slots</div></article>
+      <article class="card stat"><div class="stat-label">Tasks terminal</div><div class="stat-value" id="terminal-tasks">—</div><div class="stat-meta" id="task-meta">—</div></article>
+      <article class="card stat"><div class="stat-label">Semantic pending</div><div class="stat-value" id="semantic-total">—</div><div class="stat-meta" id="semantic-meta">—</div></article>
+    </section>
+
+    <section class="section">
+      <div class="section-head"><h2>Duck pool</h2><span>heartbeat / progress age cập nhật mỗi giây</span></div>
+      <div class="duck-grid" id="duck-grid"></div>
+    </section>
+
+    <section class="main-grid">
+      <div>
+        <article class="card panel">
+          <div class="section-head"><h2>Task queue & leases</h2><span id="task-count">0 tasks</span></div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Task</th><th>State</th><th>Slot</th><th>Attempts</th><th>Wall budget</th><th>Top</th></tr></thead>
+              <tbody id="task-table"></tbody>
+            </table>
+          </div>
+        </article>
+
+        <article class="card panel section">
+          <div class="section-head"><h2>Runtime timeline</h2><span>durable events gần nhất</span></div>
+          <ul class="timeline" id="event-list"></ul>
+        </article>
+      </div>
+
+      <aside>
+        <article class="card panel">
+          <div class="section-head"><h2>Semantic supervision</h2><span>stateless</span></div>
+          <div class="semantic-flow" aria-label="Mother to Top to Sol flow">
+            <div class="semantic-node"><strong id="mother-count">0</strong>Mother</div><span class="arrow">→</span>
+            <div class="semantic-node"><strong id="top-count">0</strong>Top</div><span class="arrow">→</span>
+            <div class="semantic-node"><strong id="sol-count">0</strong>Sol</div>
+          </div>
+          <ul class="pending-list" id="pending-list"></ul>
+        </article>
+
+        <article class="card panel section">
+          <div class="section-head"><h2>Anomalies</h2><span id="alert-count">0 alerts</span></div>
+          <ul class="timeline" id="alert-list"></ul>
+        </article>
+      </aside>
+    </section>
+  </main>
+
+  <script>
+    const BOOTSTRAP = __DUCKING_BOOTSTRAP__;
+    const $ = (id) => document.getElementById(id);
+    let latest = null;
+    let busy = false;
+
+    function esc(value) {
+      return String(value ?? "").replace(/[&<>'"]/g, (char) => ({"&":"&amp;","<":"&lt;",">":"&gt;","'":"&#39;",'"':"&quot;"})[char]);
+    }
+    function age(value) { return value == null ? "—" : value < 60 ? `${value}s` : `${Math.floor(value / 60)}m ${value % 60}s`; }
+    function short(value, size = 12) { const text = String(value ?? ""); return text.length > size ? `${text.slice(0, size)}…` : text; }
+    function timeLabel(value) { if (!value) return "—"; const date = new Date(value); return Number.isNaN(date.valueOf()) ? value : date.toLocaleTimeString([], {hour: "2-digit", minute: "2-digit", second: "2-digit"}); }
+    function stateTone(state) {
+      if (["reviewed", "succeeded", "accepted", "idle"].includes(state)) return "good";
+      if (["escalated", "dead_lettered", "cancelled", "fatal_failure"].includes(state)) return "bad";
+      if (["retry_wait", "soft_stalled", "queued", "final_review"].includes(state)) return "warn";
+      return "";
+    }
+    function badge(label, tone = "") { return `<span class="badge ${tone}">${esc(label)}</span>`; }
+
+    function render(data) {
+      latest = data;
+      const flock = data.flock;
+      $("flock-id").textContent = flock.flock_id;
+      $("observed-at").textContent = `observed ${timeLabel(data.observed_at)}`;
+      $("aggregate-state").innerHTML = badge(flock.state, stateTone(flock.state));
+      $("aggregate-meta").textContent = `epoch ${flock.coordinator_epoch} · rev ${flock.revision} · EOF ${flock.eof ? "yes" : "no"}`;
+      $("active-ducks").textContent = `${flock.active_ducks} / ${flock.duck_count}`;
+      const terminal = data.tasks.filter((task) => task.task_eof).length;
+      $("terminal-tasks").textContent = `${terminal} / ${data.tasks.length}`;
+      $("task-meta").textContent = Object.entries(flock.task_summary).map(([key, value]) => `${key} ${value}`).join(" · ") || "no tasks";
+      const pendingTotal = Object.values(flock.pending_semantic).reduce((sum, value) => sum + value, 0);
+      $("semantic-total").textContent = pendingTotal;
+      $("semantic-meta").textContent = `Mother ${flock.pending_semantic.mother} · Top ${flock.pending_semantic.top} · Sol ${flock.pending_semantic.sol}`;
+      renderDucks(data.ducks);
+      renderTasks(data.tasks);
+      renderSemantic(data.pending, flock.pending_semantic);
+      renderAlerts(data.alerts);
+      renderEvents(data.events);
+      updateControls(flock);
+    }
+
+    function renderDucks(ducks) {
+      $("duck-grid").innerHTML = ducks.map((duck) => {
+        const active = duck.state === "busy";
+        const progress = active ? Math.min(100, 12 + Number(duck.progress_seq || 0) * 12) : 0;
+        return `<article class="card duck ${active ? "active" : ""}">
+          <div class="duck-head"><span class="duck-icon" aria-hidden="true">🦆</span><span class="slot">slot ${duck.slot_id} · i${duck.incarnation}</span></div>
+          <div class="duck-task">${active ? esc(duck.task_id) : "Đang chờ đàn"}</div>
+          <div>${badge(active ? duck.phase : duck.state, active ? "good" : "")}</div>
+          <div class="duck-meta">${active ? `attempt ${duck.attempt}<br>heartbeat ${age(duck.heartbeat_age_seconds)} · progress ${age(duck.progress_age_seconds)}<br><code>${esc(short(duck.lease_id, 10))}</code>` : "Không có active lease"}</div>
+          <div class="progress-track" aria-label="Progress sequence ${duck.progress_seq || 0}"><span style="width:${progress}%"></span></div>
+        </article>`;
+      }).join("");
+    }
+
+    function renderTasks(tasks) {
+      $("task-count").textContent = `${tasks.length} tasks`;
+      $("task-table").innerHTML = tasks.map((task) => {
+        const ratio = task.wall_budget_seconds ? Math.min(100, Math.round(task.wall_used_seconds / task.wall_budget_seconds * 100)) : 0;
+        return `<tr>
+          <td><strong>${esc(task.task_id)}</strong>${task.depends_on.length ? `<div class="muted">after ${esc(task.depends_on.join(", "))}</div>` : ""}</td>
+          <td>${badge(task.state, stateTone(task.state))}${task.state === "retry_wait" ? `<div class="muted">${task.retry_authorized ? "authorized" : "awaiting decision"}</div>` : ""}</td>
+          <td>${task.slot_id == null ? "—" : task.slot_id}</td>
+          <td>${task.attempts} / ${task.max_attempts}</td>
+          <td class="budget"><div class="budget-line"><span>${task.wall_used_seconds}s</span><span>${task.wall_budget_seconds}s</span></div><div class="progress-track"><span style="width:${ratio}%"></span></div></td>
+          <td>${task.reported_to_top ? "reported" : "—"}</td>
+        </tr>`;
+      }).join("") || `<tr><td colspan="6" class="empty">Không có task</td></tr>`;
+    }
+
+    function renderSemantic(pending, counts) {
+      $("mother-count").textContent = counts.mother;
+      $("top-count").textContent = counts.top;
+      $("sol-count").textContent = counts.sol;
+      $("pending-list").innerHTML = pending.map((item) => `<li>
+        <div class="pending-title"><strong>${esc(item.role)} · ${esc(item.trigger)}</strong>${badge(`try ${item.delivery_attempts}/3`, item.delivery_attempts > 1 ? "warn" : "")}</div>
+        <div class="pending-sub">${esc(item.subject_id || item.subject_kind)} · ${esc(item.commands.join(" / "))}</div>
+      </li>`).join("") || `<li class="empty">Không có semantic event đang chờ</li>`;
+    }
+
+    function renderAlerts(alerts) {
+      $("alert-count").textContent = `${alerts.length} alerts`;
+      $("alert-list").innerHTML = [...alerts].reverse().map((item) => `<li>
+        <div class="timeline-head">${badge(item.severity, item.severity === "critical" || item.severity === "error" ? "bad" : "warn")}<strong>${esc(item.code)}</strong><span class="timeline-time">${timeLabel(item.occurred_at)}</span></div>
+        <div class="facts">${item.task_id ? `${esc(item.task_id)} · ` : ""}${esc(JSON.stringify(item.facts))}</div>
+      </li>`).join("") || `<li class="empty">Không có anomaly</li>`;
+    }
+
+    function renderEvents(events) {
+      $("event-list").innerHTML = [...events].reverse().map((item) => {
+        const reason = item.reason || item.event || "state_changed";
+        const actor = item.actor || item.source || "runtime";
+        const timestamp = item.ts || item.at || item.occurred_at || item.timestamp;
+        return `<li><div class="timeline-head">${badge(actor)}<strong>${esc(reason)}</strong><span class="timeline-time">${timeLabel(timestamp)}</span></div><div class="facts">${esc(JSON.stringify(item.artifacts || item.details || {}))}</div></li>`;
+      }).join("") || `<li class="empty">Chưa có durable event</li>`;
+    }
+
+    function updateControls(flock) {
+      const terminal = ["reviewed", "escalated", "cancelled"].includes(flock.state);
+      $("tick-btn").disabled = busy || terminal;
+      $("sweep-btn").disabled = busy || terminal;
+      $("cancel-btn").disabled = busy || terminal;
+      $("mother-btn").disabled = busy || !BOOTSTRAP.allowSupervisor || flock.pending_semantic.mother < 1;
+      $("top-btn").disabled = busy || !BOOTSTRAP.allowSupervisor || flock.pending_semantic.top < 1;
+    }
+
+    async function action(name, body = {}) {
+      if (busy) return;
+      busy = true;
+      $("action-result").className = "action-result";
+      $("action-result").textContent = `Running ${name}…`;
+      if (latest) updateControls(latest.flock);
+      try {
+        const response = await fetch(`/api/actions/${name}`, {
+          method: "POST",
+          headers: {"Content-Type": "application/json", "X-Ducking-Token": BOOTSTRAP.actionToken},
+          body: JSON.stringify(body),
+        });
+        const payload = await response.json();
+        if (!response.ok || !payload.ok) throw new Error(payload.message || payload.error || "Action failed");
+        render(payload.state);
+        $("action-result").textContent = `${name} completed`;
+      } catch (error) {
+        $("action-result").className = "action-result error";
+        $("action-result").textContent = error.message;
+      } finally {
+        busy = false;
+        if (latest) updateControls(latest.flock);
+      }
+    }
+
+    $("tick-btn").addEventListener("click", () => action("tick"));
+    $("sweep-btn").addEventListener("click", () => action("sweep"));
+    $("mother-btn").addEventListener("click", () => window.confirm("Gọi DeepSeek Mother cho một pending event? Thao tác này phát sinh token cost.") && action("dispatch-mother", {confirm_cost: true}));
+    $("top-btn").addEventListener("click", () => window.confirm("Gọi DeepSeek Top cho một pending event? Thao tác này phát sinh token cost.") && action("dispatch-top", {confirm_cost: true}));
+    $("cancel-btn").addEventListener("click", () => {
+      const confirmation = window.prompt(`Nhập flock ID để huỷ toàn aggregate:\n${BOOTSTRAP.flockId}`);
+      if (confirmation !== null) action("cancel", {confirm: confirmation});
+    });
+
+    const stream = new EventSource("/events");
+    stream.addEventListener("open", () => { $("live-dot").classList.add("live"); $("connection-label").textContent = "Live"; });
+    stream.addEventListener("state", (event) => { try { render(JSON.parse(event.data)); } catch (_) {} });
+    stream.addEventListener("error", () => { $("live-dot").classList.remove("live"); $("connection-label").textContent = "Đang nối lại"; });
+    fetch("/api/state").then((response) => response.json()).then(render).catch(() => {});
+  </script>
+</body>
+</html>

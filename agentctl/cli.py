@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any, Sequence
 
 from . import __version__
+from .dashboard import serve_flock_dashboard
 from .errors import AgentCtlError
 from .flock import (
     cancel_flock,
@@ -223,6 +224,16 @@ def build_parser() -> argparse.ArgumentParser:
     recover.add_argument("--operation-id", required=True)
     recover.add_argument("--reason", default="coordinator_lost")
     _add_output_flag(recover)
+    dashboard = flock_commands.add_parser("dashboard")
+    _add_project(dashboard)
+    dashboard.add_argument("--flock", required=True)
+    dashboard.add_argument("--port", type=int, default=8765)
+    dashboard.add_argument(
+        "--allow-unsafe-supervisor",
+        action="store_true",
+        help="Enable cost-confirmed mother/top dispatch from the local dashboard",
+    )
+    _add_output_flag(dashboard)
 
     supervisor = subcommands.add_parser("supervisor")
     supervisor_commands = supervisor.add_subparsers(
@@ -356,6 +367,13 @@ def _dispatch(args: argparse.Namespace) -> dict[str, Any]:
                 expected_epoch=args.expected_epoch,
                 operation_id=args.operation_id,
                 reason=args.reason,
+            )
+        if args.flock_command == "dashboard":
+            return serve_flock_dashboard(
+                args.project,
+                args.flock,
+                port=args.port,
+                allow_unsafe_supervisor=args.allow_unsafe_supervisor,
             )
         return cancel_flock(args.project, args.flock)
     if args.command == "supervisor":

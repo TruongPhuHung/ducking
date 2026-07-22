@@ -522,6 +522,21 @@ opens the root circuit and escalates. Never use `recover` as a substitute for
 proving that the old processes are gone, and never invent a new operation ID
 merely to bypass an epoch mismatch.
 
+For live observation and bounded operator controls, start the loopback-only
+dashboard:
+
+```sh
+"$ACP" flock dashboard --project /absolute/path/to/project \
+  --flock "$FLOCK_ID" --port 8765 --allow-unsafe-supervisor
+```
+
+It streams a credential-free projection of the six slots, tasks, lease ages,
+semantic outbox, alerts, and durable events over SSE. Mutating requests require
+the page's per-process action token; cancellation additionally requires the
+exact flock ID, and Mother/Top dispatch requires an explicit cost confirmation.
+Without `--allow-unsafe-supervisor`, those dispatch buttons remain disabled.
+The dashboard does not spawn child processes or replace the external runner.
+
 Drain one pending mother/top snapshot per dispatch call:
 
 ```sh

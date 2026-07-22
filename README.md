@@ -177,6 +177,21 @@ Retry the same recovery with the same operation ID; a new operation with a stale
 epoch is rejected. Literal Erlang-style atoms must never be derived from task
 or branch IDs; Ducking keeps those values as bounded strings.
 
+Start the live local control dashboard for an existing flock:
+
+```text
+scripts/agentctl flock dashboard --project /path/to/project \
+  --flock FLOCK_ID --port 8765 --allow-unsafe-supervisor
+```
+
+Open `http://127.0.0.1:8765/`. The SSE view shows all six slots, active leases,
+heartbeat/progress age, task budgets, semantic outbox, alerts, and durable
+events. It can run `tick` and `sweep`, perform a typed-confirmation aggregate
+cancel, and dispatch one pending Mother/Top event after a cost confirmation.
+The server binds loopback only and protects mutations with a per-process token.
+Omit `--allow-unsafe-supervisor` to keep DeepSeek buttons disabled. The dashboard
+visualizes logical assignments; the external runner still owns child launch.
+
 Detailed guides:
 
 - `docs/AGENT-GUIDE.md` for planner/reviewer agents.

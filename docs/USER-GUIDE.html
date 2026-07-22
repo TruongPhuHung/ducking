@@ -366,6 +366,7 @@
       <a href="#gan-project">Gắn project</a>
       <a href="#task">Task</a>
       <a href="#flock">Flock MVP</a>
+      <a href="#dashboard">Dashboard</a>
       <a href="#van-hanh">Vận hành</a>
       <a href="#review">Review</a>
       <a href="#social-match">social_match</a>
@@ -798,7 +799,14 @@ cp "$ACP_ROOT/templates/opencode-supervisor-agent.md" \
 
       <p>Escalation offer <code>ack</code> hoặc <code>abort_flock</code>; aggregate final review offer <code>approve_flock</code>, <code>rework</code> hoặc <code>abort_flock</code>. Sol phải review task, patch, evidence và Flock-owned review pack đã đóng băng của các child run trước khi chọn và dùng <code>supervisor apply --file action.json</code>; action vẫn phải bind đúng command được snapshot offer. <code>approve_flock</code> re-hash toàn bộ retained artifact set rồi chuyển aggregate state sang <code>reviewed</code>, không phải <code>complete</code>. Nó không accept/integrate từng child và không apply patch; hai lựa chọn còn lại đi vào escalation.</p>
 
-      <h3>6.6 Giới hạn MVP và ví dụ chi phí cache</h3>
+      <h3 id="dashboard">6.6 Dashboard thời gian thực</h3>
+      <pre><code>"$ACP" flock dashboard --project /absolute/path/to/project \
+  --flock "$FLOCK_ID" --port 8765 \
+  --allow-unsafe-supervisor</code></pre>
+      <p>Mở <code>http://127.0.0.1:8765/</code> để xem live sáu duck slot, lease, heartbeat/progress age, task budget, semantic outbox, anomaly và durable timeline. Dashboard cập nhật mỗi giây bằng SSE; có thể gọi <code>tick</code>, <code>sweep</code>, huỷ aggregate sau khi nhập đúng flock ID, và dispatch một Mother/Top event sau khi xác nhận token cost.</p>
+      <div class="callout warn"><strong>Control plane cục bộ, không phải process runner.</strong><p>Server chỉ bind loopback và action dùng token ngẫu nhiên theo process. Bỏ <code>--allow-unsafe-supervisor</code> nếu chỉ muốn quan sát; nút DeepSeek sẽ bị khoá. Dashboard không launch child, không ghép patch và không làm Sol polling.</p></div>
+
+      <h3>6.7 Giới hạn MVP và ví dụ chi phí cache</h3>
       <div class="callout danger">
         <strong>Chưa có combined patch pipeline</strong>
         <p>Khi một child báo success bằng <code>--run</code>, Flock tự kiểm tra và giữ nguyên byte của task, patch, evidence, đồng thời tạo/giữ Flock-owned review pack cùng các digest do controller derive. Child <code>accepted</code> còn đóng góp review đã validate và human approval nếu cần. Khi mọi task thành công và đã báo Top, Flock tạo aggregate manifest gồm base, task hash, final attempt EOF và retained artifact set, với <code>combined_patch_created: false</code> và <code>combined_verification_run: false</code>. Flock chưa ghép/rebase patch child, xử lý conflict, chạy aggregate verifier, tạo combined review pack, accept/integrate từng child hay kiểm chứng acceptance ở mức tích hợp. Không có automatic apply, commit, push, merge, release hoặc deploy.</p>

@@ -166,6 +166,13 @@ base. Until an external assembly/rebase layer exists, dependent units must be
 patch-independent or their code handoff must be managed explicitly outside the
 MVP.
 
+The optional `flock dashboard` is a loopback-only read/control adapter over the
+same durable state. It projects six slots, tasks, lease ages, outbox items,
+alerts, and recent events through one-second SSE snapshots. `tick`, `sweep`,
+typed-confirmation cancellation, and cost-confirmed Mother/Top dispatch use
+same-origin JSON requests plus a random per-process action token. It exposes no
+profile argv or credentials and does not become a child-process runner.
+
 Assignment delivery is replay-safe rather than fire-and-forget. A new lease has
 `assignment_acknowledged: false`; repeated `flock tick` calls return that same
 lease with `replayed: true` until its first valid heartbeat. The external runner
@@ -280,6 +287,8 @@ agentctl flock sweep      --project PROJECT --flock FLOCK_ID
 agentctl flock recover    --project PROJECT --flock FLOCK_ID
                           --expected-epoch EPOCH --operation-id OPERATION_ID
                           [--reason REASON]
+agentctl flock dashboard  --project PROJECT --flock FLOCK_ID
+                          [--port PORT] [--allow-unsafe-supervisor]
 agentctl flock cancel     --project PROJECT --flock FLOCK_ID
 
 agentctl supervisor profiles --project PROJECT --flock FLOCK_ID

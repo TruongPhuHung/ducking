@@ -1,6 +1,6 @@
 {
   "name": "ducking",
-  "version": "0.2.0+codex.20260722170446",
+  "version": "0.3.0+codex.20260722172614",
   "description": "Lead a coordinated flock of supervised CLI coding workers",
   "author": {
     "name": "TruongPhuHung"
