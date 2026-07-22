@@ -56,17 +56,24 @@ def _prepare_workspace(
     runtime = workspace / ".agentctl-runtime"
     runtime.mkdir(mode=0o700)
     request = runtime / "request.json"
-    envelope = canonical_json(
-        {"snapshot_sha256": snapshot_sha256, "snapshot": snapshot}
-    )
+    value = {"snapshot_sha256": snapshot_sha256, "snapshot": snapshot}
+    envelope = canonical_json(value)
+    readable_request = (
+        json.dumps(value, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
+    ).encode("utf-8")
     atomic_write_bytes(root / "delivery-envelope.json", envelope, mode=0o600)
-    atomic_write_bytes(request, envelope, mode=0o444)
+    atomic_write_bytes(request, readable_request, mode=0o444)
     return workspace, request
 
 
 def _exact_json_object(value: str) -> dict[str, Any] | None:
+    stripped = value.strip()
+    if stripped.startswith("```json\n") and stripped.endswith("\n```"):
+        if stripped.count("```") != 2:
+            return None
+        stripped = stripped[len("```json\n") : -len("\n```")]
     try:
-        result = json.loads(value)
+        result = json.loads(stripped)
     except json.JSONDecodeError:
         return None
     return result if isinstance(result, dict) else None

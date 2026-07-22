@@ -778,6 +778,13 @@ class FlockTests(unittest.TestCase):
         before = self._state(started)
 
         def invalid_runner(*args: object, **kwargs: object) -> ProcessResult:
+            request_text = Path(kwargs["request_file"]).read_text(encoding="utf-8")
+            request_value = json.loads(request_text)
+            self.assertGreater(len(request_text.splitlines()), 2)
+            self.assertEqual(
+                request_value["snapshot_sha256"],
+                json_hash(request_value["snapshot"]),
+            )
             events_path = Path(kwargs["events_file"])
             stderr_path = Path(kwargs["stderr_file"])
             events_path.write_text("not a semantic action\n", encoding="utf-8")
@@ -1222,6 +1229,18 @@ class FlockTests(unittest.TestCase):
 
 
 class SemanticExtractionTests(unittest.TestCase):
+    def test_extracts_one_json_markdown_fence(self) -> None:
+        action = {
+            "contract_version": 1,
+            "snapshot_id": "snapshot-one",
+            "snapshot_sha256": "a" * 64,
+            "selected_command_id": "command-one",
+            "reason_code": "bounded_choice",
+        }
+        fenced = f"```json\n{json.dumps(action)}\n```".encode()
+
+        self.assertEqual(extract_semantic_action(fenced), action)
+
     def test_extracts_action_from_streamed_text_parts(self) -> None:
         action = {
             "contract_version": 1,
@@ -1254,6 +1273,7 @@ class SemanticExtractionTests(unittest.TestCase):
             "streamed_trailing": json.dumps(
                 {"part": {"text": f"{document} trailing"}}
             ).encode(),
+            "fenced_with_prose": f"Decision:\n```json\n{document}\n```".encode(),
         }
         for name, payload in payloads.items():
             with self.subTest(name=name):
