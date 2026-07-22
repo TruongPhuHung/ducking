@@ -3,9 +3,9 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "agent-control-plane"
-version = "0.1.0"
-description = "Provider-neutral control plane for supervised CLI coding workers"
+name = "ducking"
+version = "0.1.1"
+description = "Lead a coordinated flock of supervised CLI coding workers"
 requires-python = ">=3.11"
 dependencies = []
 

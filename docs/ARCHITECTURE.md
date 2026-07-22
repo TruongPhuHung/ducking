@@ -1,7 +1,9 @@
-# Agent Control Plane Architecture
+# Ducking Architecture
 
-`agent-control-plane` is a reusable control module for supervising lower-cost
-CLI coding workers. GPT Sol owns planning and semantic review; the Python
+`ducking` is a reusable control module for supervising lower-cost CLI coding
+workers. Its flock metaphor captures the authority model: GPT Sol is the lead
+duck that owns planning and semantic review, while bounded workers follow the
+frozen route. The Python
 `agentctl` core owns deterministic orchestration and evidence. An attached
 project supplies policy and validation, while a human retains unsafe-execution,
 high-risk, integration, and release authority.

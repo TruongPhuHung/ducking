@@ -4,6 +4,11 @@ This guide is the normative operating protocol for a Sol-class planner/reviewer
 using `agentctl` to supervise a lower-cost CLI coding worker. The controller,
 not the worker transcript, owns run state and evidence.
 
+In the Ducking model, Sol is the lead duck: it chooses the route through
+planning and semantic review. CLI workers are the flock: they follow one
+frozen task contract at a time and never choose their own scope or approve
+their own patch.
+
 ## 1. Authority and trust boundaries
 
 Keep these roles separate:
@@ -36,7 +41,7 @@ dependencies. Prefer the repository launcher because it resolves the module
 relative to its own location:
 
 ```sh
-ACP_ROOT=/absolute/path/to/agent-control-plane
+ACP_ROOT=/absolute/path/to/ducking
 ACP="$ACP_ROOT/scripts/agentctl"
 "$ACP" version --json
 "$ACP" paths --json
@@ -51,11 +56,11 @@ installation (`python3.11 -m pip install -e "$ACP_ROOT"`) also exposes the
 Path resolution is deterministic:
 
 - user config: `AGENTCTL_CONFIG`, otherwise
-  `$XDG_CONFIG_HOME/agent-control-plane/config.toml`, otherwise
-  `~/.config/agent-control-plane/config.toml`;
+  `$XDG_CONFIG_HOME/ducking/config.toml`, otherwise
+  `~/.config/ducking/config.toml`;
 - state: `AGENTCTL_STATE_HOME`, otherwise
-  `$XDG_STATE_HOME/agent-control-plane`, otherwise
-  `~/.local/state/agent-control-plane`.
+  `$XDG_STATE_HOME/ducking`, otherwise
+  `~/.local/state/ducking`.
 
 Use `agentctl paths --json` instead of assuming either default. Run state,
 patches, logs, receipts, verifier clones, and review artifacts live outside the

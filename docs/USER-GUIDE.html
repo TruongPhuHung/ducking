@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="light dark">
-  <title>Agent Control Plane — Hướng dẫn sử dụng</title>
+  <title>Ducking — Hướng dẫn sử dụng</title>
   <style>
     :root {
       --ink: #17233b;
@@ -342,11 +342,11 @@
   <header class="hero">
     <div class="wrap hero-grid">
       <div>
-        <span class="eyebrow">Protocol v1 · Agent Control Plane</span>
+        <span class="eyebrow">Ducking · Protocol v1</span>
         <h1>Dùng Sol để suy nghĩ, dùng worker để thi công</h1>
         <p class="lede">
-          Hướng dẫn vận hành module <strong>agentctl</strong>: Sol lập kế hoạch và review ngữ nghĩa,
-          OpenCode/DeepSeek xử lý task nhỏ trong workspace riêng, còn máy kiểm chứng giữ patch,
+          Ducking lấy cảm hứng từ bầy vịt đi theo con đầu đàn: Sol dẫn đường bằng kế hoạch và review
+          ngữ nghĩa; OpenCode/DeepSeek theo contract để xử lý task nhỏ; máy kiểm chứng giữ patch,
           hash, ngân sách và trạng thái. Người dùng vẫn nắm quyền đối với rủi ro và Git.
         </p>
       </div>
@@ -412,14 +412,14 @@
       <ol class="steps">
         <li>
           <h3>Clone repository</h3>
-          <pre><code>git clone git@github.com:TruongPhuHung/ducking.git agent-control-plane
-cd agent-control-plane
+          <pre><code>git clone git@github.com:TruongPhuHung/ducking.git ducking
+cd ducking
 ./scripts/agentctl version --json</code></pre>
           <p class="small">Nếu repository là private, SSH key của GitHub phải được cấu hình trước.</p>
         </li>
         <li>
           <h3>Chọn một cách gọi ổn định</h3>
-          <pre><code>ACP_ROOT=/absolute/path/to/agent-control-plane
+          <pre><code>ACP_ROOT=/absolute/path/to/ducking
 ACP="$ACP_ROOT/scripts/agentctl"
 "$ACP" version --json</code></pre>
           <p>Launcher tự tìm Python 3.13/3.12/3.11, Python bundle của Codex, rồi mới thử <code>python3</code>. Nếu cần, đặt <code>AGENTCTL_PYTHON</code> trỏ tới interpreter Python 3.11+.</p>
@@ -435,8 +435,8 @@ agentctl version --json</code></pre>
             <table>
               <thead><tr><th>Dữ liệu</th><th>Ưu tiên 1</th><th>Mặc định</th></tr></thead>
               <tbody>
-                <tr><td>User config</td><td><code>AGENTCTL_CONFIG</code></td><td><code>$XDG_CONFIG_HOME/agent-control-plane/config.toml</code>, hoặc <code>~/.config/agent-control-plane/config.toml</code></td></tr>
-                <tr><td>Run state</td><td><code>AGENTCTL_STATE_HOME</code></td><td><code>$XDG_STATE_HOME/agent-control-plane</code>, hoặc <code>~/.local/state/agent-control-plane</code></td></tr>
+                <tr><td>User config</td><td><code>AGENTCTL_CONFIG</code></td><td><code>$XDG_CONFIG_HOME/ducking/config.toml</code>, hoặc <code>~/.config/ducking/config.toml</code></td></tr>
+                <tr><td>Run state</td><td><code>AGENTCTL_STATE_HOME</code></td><td><code>$XDG_STATE_HOME/ducking</code>, hoặc <code>~/.local/state/ducking</code></td></tr>
               </tbody>
             </table>
           </div>
@@ -574,7 +574,7 @@ sed -n '1,260p' .agentctl.toml
 git diff -- AGENTS.md
 git add .agentctl.toml AGENTS.md
 git diff --cached
-git commit -m "chore: attach agent control plane"</code></pre>
+git commit -m "chore: attach ducking"</code></pre>
           <p><code>run init</code> đòi worktree sạch, <code>base_sha</code> bằng <code>HEAD</code>, và mọi context bắt buộc đã nằm trong commit gốc. Vì vậy attach xong nhưng chưa commit thì chưa chạy task được.</p>
         </li>
         <li>
@@ -897,7 +897,7 @@ git -C "$PROJECT" diff -- AGENTS.md</code></pre>
   </main>
 
   <footer class="wrap">
-    Agent Control Plane · Hướng dẫn người dùng cho protocol v1 · Không cần JavaScript hay tài nguyên CSS bên ngoài.
+    Ducking · Hướng dẫn người dùng cho protocol v1 · Không cần JavaScript hay tài nguyên CSS bên ngoài.
   </footer>
 </body>
 </html>

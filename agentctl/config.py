@@ -89,7 +89,7 @@ def default_user_config_path() -> Path:
     config_home = Path(
         os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")
     ).expanduser()
-    return config_home / "agent-control-plane" / "config.toml"
+    return config_home / "ducking" / "config.toml"
 
 
 def default_state_home() -> Path:
@@ -99,7 +99,7 @@ def default_state_home() -> Path:
     state_home = Path(
         os.environ.get("XDG_STATE_HOME", Path.home() / ".local" / "state")
     ).expanduser()
-    return state_home / "agent-control-plane"
+    return state_home / "ducking"
 
 
 def _read_toml(path: Path, label: str) -> dict[str, Any]:

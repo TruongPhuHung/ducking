@@ -1,8 +1,10 @@
-# Agent Control Plane
+# Ducking
 
-`agent-control-plane` lets a high-reasoning planner/reviewer supervise bounded,
-lower-cost CLI coding workers without coupling project policy to one model or
-one agent runtime.
+`ducking` lets a high-reasoning planner/reviewer supervise bounded, lower-cost
+CLI coding workers without coupling project policy to one model or one agent
+runtime. The name comes from a flock following its lead duck: Sol stays in
+front to choose the route and inspect the result, while worker agents follow
+the frozen task contract and execute small units of work.
 
 The repository is both:
 

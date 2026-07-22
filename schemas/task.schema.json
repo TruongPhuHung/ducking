@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://local.agent-control-plane/schemas/task-v1.json",
-  "title": "Agent Control Plane Task v1",
+  "$id": "https://local.ducking/schemas/task-v1.json",
+  "title": "Ducking Task v1",
   "type": "object",
   "required": [
     "contract_version",
