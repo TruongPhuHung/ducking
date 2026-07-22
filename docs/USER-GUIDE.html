@@ -1,0 +1,903 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>Agent Control Plane — Hướng dẫn sử dụng</title>
+  <style>
+    :root {
+      --ink: #17233b;
+      --muted: #5c6880;
+      --paper: #f4f7fb;
+      --surface: #ffffff;
+      --line: #d8e0ec;
+      --brand: #155eef;
+      --brand-deep: #0d3b9c;
+      --brand-soft: #eaf1ff;
+      --good: #087443;
+      --good-soft: #e7f7ef;
+      --warn: #9a4d00;
+      --warn-soft: #fff2df;
+      --danger: #b42318;
+      --danger-soft: #ffebe8;
+      --code: #101828;
+      --code-ink: #e7eefc;
+      --shadow: 0 18px 52px rgba(22, 38, 70, 0.10);
+      --radius: 18px;
+      --max: 1160px;
+    }
+
+    * { box-sizing: border-box; }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      margin: 0;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 8% 0%, rgba(21, 94, 239, 0.10), transparent 27rem),
+        radial-gradient(circle at 100% 12%, rgba(3, 152, 85, 0.08), transparent 24rem),
+        var(--paper);
+      font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI",
+        Roboto, Helvetica, Arial, sans-serif;
+      line-height: 1.65;
+    }
+
+    a { color: var(--brand-deep); text-underline-offset: 0.16em; }
+    a:hover { color: var(--brand); }
+
+    .wrap { width: min(calc(100% - 32px), var(--max)); margin-inline: auto; }
+
+    .hero {
+      padding: 64px 0 40px;
+      border-bottom: 1px solid var(--line);
+      background: linear-gradient(135deg, rgba(255,255,255,0.88), rgba(234,241,255,0.70));
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 11px;
+      border: 1px solid #b9ccf8;
+      border-radius: 999px;
+      color: var(--brand-deep);
+      background: var(--brand-soft);
+      font-size: 0.78rem;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    h1, h2, h3 { line-height: 1.2; letter-spacing: -0.025em; }
+    h1 { max-width: 860px; margin: 20px 0 16px; font-size: clamp(2.35rem, 6vw, 4.8rem); }
+    h2 { margin: 0 0 18px; font-size: clamp(1.65rem, 3.2vw, 2.45rem); }
+    h3 { margin: 0 0 10px; font-size: 1.12rem; }
+
+    .lede { max-width: 800px; margin: 0; color: var(--muted); font-size: 1.12rem; }
+
+    .hero-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.5fr) minmax(260px, 0.7fr);
+      gap: 28px;
+      align-items: end;
+    }
+
+    .hero-note {
+      padding: 20px;
+      border: 1px solid #b9ccf8;
+      border-radius: var(--radius);
+      background: rgba(255,255,255,0.80);
+      box-shadow: var(--shadow);
+    }
+
+    .hero-note strong { display: block; margin-bottom: 5px; }
+    .hero-note p { margin: 0; color: var(--muted); }
+
+    nav {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      border-bottom: 1px solid var(--line);
+      background: rgba(244, 247, 251, 0.94);
+      backdrop-filter: blur(14px);
+    }
+
+    nav .wrap {
+      display: flex;
+      gap: 8px;
+      padding-block: 11px;
+      overflow-x: auto;
+      scrollbar-width: thin;
+    }
+
+    nav a {
+      flex: none;
+      padding: 7px 11px;
+      border-radius: 9px;
+      color: var(--muted);
+      font-size: 0.9rem;
+      font-weight: 700;
+      text-decoration: none;
+    }
+
+    nav a:hover { color: var(--brand-deep); background: var(--brand-soft); }
+
+    main { padding: 22px 0 72px; }
+
+    section {
+      margin-top: 26px;
+      padding: clamp(22px, 4vw, 40px);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: rgba(255,255,255,0.94);
+      box-shadow: 0 8px 32px rgba(22, 38, 70, 0.055);
+      scroll-margin-top: 74px;
+    }
+
+    .section-intro { max-width: 820px; color: var(--muted); }
+    .section-intro:first-of-type { margin-top: -7px; }
+
+    .grid-2, .grid-3 { display: grid; gap: 16px; }
+    .grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+
+    .card {
+      padding: 20px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: #fbfcfe;
+    }
+
+    .card p:last-child, .card ul:last-child { margin-bottom: 0; }
+    .role { border-top: 4px solid var(--brand); }
+    .role.worker { border-top-color: #7f56d9; }
+    .role.control { border-top-color: var(--good); }
+    .role.human { border-top-color: #d97706; }
+
+    .tag {
+      display: inline-block;
+      margin-bottom: 8px;
+      padding: 3px 8px;
+      border-radius: 999px;
+      color: var(--brand-deep);
+      background: var(--brand-soft);
+      font-size: 0.75rem;
+      font-weight: 800;
+      text-transform: uppercase;
+    }
+
+    .callout {
+      margin: 20px 0;
+      padding: 17px 18px;
+      border-left: 5px solid var(--brand);
+      border-radius: 12px;
+      background: var(--brand-soft);
+    }
+
+    .callout strong { display: block; margin-bottom: 4px; }
+    .callout p { margin: 0; }
+    .callout.warn { border-color: #e07800; background: var(--warn-soft); color: #6f3900; }
+    .callout.danger { border-color: var(--danger); background: var(--danger-soft); color: #7a271a; }
+    .callout.good { border-color: var(--good); background: var(--good-soft); color: #075a34; }
+
+    code, kbd { font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace; }
+    :not(pre) > code {
+      padding: 0.12em 0.38em;
+      border: 1px solid #d5dcea;
+      border-radius: 6px;
+      color: #283a61;
+      background: #eef2f8;
+      font-size: 0.91em;
+    }
+
+    pre {
+      margin: 16px 0 22px;
+      padding: 18px;
+      overflow-x: auto;
+      border: 1px solid #273752;
+      border-radius: 13px;
+      color: var(--code-ink);
+      background: var(--code);
+      font-size: 0.86rem;
+      line-height: 1.58;
+      tab-size: 2;
+    }
+
+    pre code { color: inherit; background: transparent; }
+
+    ol.steps { margin: 22px 0 0; padding: 0; counter-reset: guide-step; }
+    ol.steps > li {
+      position: relative;
+      margin: 0 0 18px;
+      padding: 2px 0 2px 54px;
+      list-style: none;
+      counter-increment: guide-step;
+    }
+    ol.steps > li::before {
+      position: absolute;
+      left: 0;
+      top: 0;
+      display: grid;
+      width: 36px;
+      height: 36px;
+      place-items: center;
+      border-radius: 11px;
+      color: white;
+      background: var(--brand);
+      content: counter(guide-step);
+      font-weight: 850;
+    }
+    ol.steps h3 { padding-top: 5px; }
+
+    table { width: 100%; border-collapse: collapse; margin: 18px 0; font-size: 0.93rem; }
+    th, td { padding: 12px 13px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+    th { color: var(--brand-deep); background: #f4f7fd; font-size: 0.82rem; text-transform: uppercase; letter-spacing: 0.045em; }
+    tr:last-child td { border-bottom: 0; }
+    .table-scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: 13px; }
+    .table-scroll table { margin: 0; min-width: 720px; }
+
+    .flow {
+      display: flex;
+      align-items: stretch;
+      gap: 8px;
+      margin: 22px 0;
+      overflow-x: auto;
+      padding-bottom: 6px;
+    }
+    .state {
+      display: grid;
+      min-width: 135px;
+      min-height: 72px;
+      place-items: center;
+      padding: 10px;
+      border: 1px solid #b9ccf8;
+      border-radius: 12px;
+      color: var(--brand-deep);
+      background: var(--brand-soft);
+      text-align: center;
+      font: 750 0.82rem/1.3 "SFMono-Regular", Consolas, monospace;
+    }
+    .arrow { align-self: center; color: var(--muted); font-weight: 900; }
+
+    .branches { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+    .branch { padding: 12px 14px; border: 1px dashed #b9c3d5; border-radius: 11px; background: #fafbfd; }
+    .branch code { font-weight: 700; }
+
+    .checklist { padding-left: 0; }
+    .checklist li { position: relative; margin: 9px 0; padding-left: 30px; list-style: none; }
+    .checklist li::before {
+      position: absolute;
+      left: 0;
+      top: 0.1em;
+      width: 20px;
+      height: 20px;
+      border-radius: 6px;
+      color: var(--good);
+      background: var(--good-soft);
+      content: "✓";
+      font-weight: 900;
+      text-align: center;
+      line-height: 20px;
+    }
+
+    details { margin: 10px 0; border: 1px solid var(--line); border-radius: 12px; background: #fbfcfe; }
+    summary { padding: 14px 16px; cursor: pointer; color: var(--brand-deep); font-weight: 800; }
+    details > div { padding: 0 16px 16px; }
+    details p:last-child { margin-bottom: 0; }
+
+    footer { padding: 30px 0 52px; color: var(--muted); text-align: center; }
+    .small { color: var(--muted); font-size: 0.88rem; }
+
+    @media (max-width: 850px) {
+      .hero { padding-top: 42px; }
+      .hero-grid, .grid-3 { grid-template-columns: 1fr; }
+      .grid-2, .branches { grid-template-columns: 1fr; }
+      .hero-note { max-width: 580px; }
+    }
+
+    @media (max-width: 560px) {
+      .wrap { width: min(calc(100% - 20px), var(--max)); }
+      section { border-radius: 14px; padding: 20px 16px; }
+      h1 { font-size: 2.35rem; }
+      ol.steps > li { padding-left: 47px; }
+      pre { margin-inline: -4px; padding: 14px; font-size: 0.78rem; }
+    }
+
+    @media print {
+      :root { --paper: #fff; --surface: #fff; }
+      nav { display: none; }
+      .hero { padding: 24px 0; }
+      section { break-inside: avoid; box-shadow: none; }
+      a { color: inherit; }
+      pre { white-space: pre-wrap; }
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --ink: #e8eef9;
+        --muted: #aab7cc;
+        --paper: #0b1220;
+        --surface: #111a2b;
+        --line: #29364c;
+        --brand: #7aa7ff;
+        --brand-deep: #a9c5ff;
+        --brand-soft: #15264a;
+        --good: #67d6a4;
+        --good-soft: #103626;
+        --warn-soft: #40280e;
+        --danger-soft: #40201f;
+      }
+      .hero { background: linear-gradient(135deg, rgba(17,26,43,.96), rgba(21,38,74,.78)); }
+      .hero-note, section { background: rgba(17,26,43,.96); }
+      nav { background: rgba(11,18,32,.94); }
+      .card, .branch, details { background: #121d30; }
+      th { background: #152238; }
+      :not(pre) > code { color: #dbe7ff; background: #1c2940; border-color: #35435a; }
+    }
+  </style>
+</head>
+<body>
+  <header class="hero">
+    <div class="wrap hero-grid">
+      <div>
+        <span class="eyebrow">Protocol v1 · Agent Control Plane</span>
+        <h1>Dùng Sol để suy nghĩ, dùng worker để thi công</h1>
+        <p class="lede">
+          Hướng dẫn vận hành module <strong>agentctl</strong>: Sol lập kế hoạch và review ngữ nghĩa,
+          OpenCode/DeepSeek xử lý task nhỏ trong workspace riêng, còn máy kiểm chứng giữ patch,
+          hash, ngân sách và trạng thái. Người dùng vẫn nắm quyền đối với rủi ro và Git.
+        </p>
+      </div>
+      <aside class="hero-note">
+        <strong>Kết quả cuối của agentctl là một patch đã kiểm chứng.</strong>
+        <p>Nó không commit, push, merge hay deploy. Ngay cả <code>integrate --apply</code> cũng chỉ áp patch vào worktree sạch.</p>
+      </aside>
+    </div>
+  </header>
+
+  <nav aria-label="Mục lục">
+    <div class="wrap">
+      <a href="#mo-hinh">Mô hình</a>
+      <a href="#cai-dat">Cài đặt</a>
+      <a href="#worker">Worker</a>
+      <a href="#gan-project">Gắn project</a>
+      <a href="#task">Task</a>
+      <a href="#van-hanh">Vận hành</a>
+      <a href="#review">Review</a>
+      <a href="#social-match">social_match</a>
+      <a href="#xu-ly-loi">Xử lý lỗi</a>
+    </div>
+  </nav>
+
+  <main class="wrap">
+    <section id="mo-hinh">
+      <h2>1. Ai chịu trách nhiệm việc gì?</h2>
+      <p class="section-intro">Kiến trúc chỉ tiết kiệm chi phí khi ranh giới quyền lực rõ ràng. Worker rẻ hơn được phép viết code, nhưng không được tự định nghĩa thành công hay tự phê duyệt kết quả.</p>
+
+      <div class="grid-2">
+        <article class="card role">
+          <span class="tag">Planner &amp; reviewer</span>
+          <h3>Sol</h3>
+          <p>Đọc policy, chốt mục tiêu nhỏ, viết tiêu chí nghiệm thu, gọi <code>agentctl</code>, rồi review task + patch + evidence đã đóng băng.</p>
+        </article>
+        <article class="card role worker">
+          <span class="tag">Implementer</span>
+          <h3>OpenCode / DeepSeek</h3>
+          <p>Chỉ thi công task đã khóa trong workspace của run. Lời tự báo cáo và câu “tests passed” của worker không phải bằng chứng.</p>
+        </article>
+        <article class="card role control">
+          <span class="tag">Control plane</span>
+          <h3>agentctl + verifier</h3>
+          <p>Tạo clone độc lập, chụp Git diff, khóa SHA-256, kiểm tra scope/ngân sách, chạy validation argv và điều khiển state machine.</p>
+        </article>
+        <article class="card role human">
+          <span class="tag">Authority</span>
+          <h3>Con người</h3>
+          <p>Cho phép chạy không sandbox, duyệt thay đổi rủi ro cao, kiểm tra worktree cuối, commit, push, merge và deploy theo quy trình project.</p>
+        </article>
+      </div>
+
+      <div class="callout danger">
+        <strong>Quy tắc an toàn quan trọng nhất</strong>
+        <p>Permission của OpenCode chỉ là lớp phòng vệ bổ sung, <em>không phải OS sandbox</em>. Process OpenCode chạy trực tiếp vẫn có quyền của user hệ điều hành. Muốn chạy unattended, hãy bọc toàn bộ worker trong container, VM hoặc sandbox cấp hệ điều hành thật.</p>
+      </div>
+    </section>
+
+    <section id="cai-dat">
+      <h2>2. Cài module và xác định đường dẫn</h2>
+      <p class="section-intro">Module cần Python 3.11+ và không có dependency Python lúc runtime. Có thể chạy ngay từ source hoặc cài editable.</p>
+
+      <ol class="steps">
+        <li>
+          <h3>Clone repository</h3>
+          <pre><code>git clone git@github.com:TruongPhuHung/ducking.git agent-control-plane
+cd agent-control-plane
+./scripts/agentctl version --json</code></pre>
+          <p class="small">Nếu repository là private, SSH key của GitHub phải được cấu hình trước.</p>
+        </li>
+        <li>
+          <h3>Chọn một cách gọi ổn định</h3>
+          <pre><code>ACP_ROOT=/absolute/path/to/agent-control-plane
+ACP="$ACP_ROOT/scripts/agentctl"
+"$ACP" version --json</code></pre>
+          <p>Launcher tự tìm Python 3.13/3.12/3.11, Python bundle của Codex, rồi mới thử <code>python3</code>. Nếu cần, đặt <code>AGENTCTL_PYTHON</code> trỏ tới interpreter Python 3.11+.</p>
+          <p>Tuỳ chọn khác:</p>
+          <pre><code>python3.11 -m pip install -e "$ACP_ROOT"
+agentctl version --json</code></pre>
+        </li>
+        <li>
+          <h3>Hỏi tool về đường dẫn thật</h3>
+          <pre><code>"$ACP" paths --json</code></pre>
+          <p>Không đoán đường dẫn config/state. Tool ưu tiên các biến sau:</p>
+          <div class="table-scroll">
+            <table>
+              <thead><tr><th>Dữ liệu</th><th>Ưu tiên 1</th><th>Mặc định</th></tr></thead>
+              <tbody>
+                <tr><td>User config</td><td><code>AGENTCTL_CONFIG</code></td><td><code>$XDG_CONFIG_HOME/agent-control-plane/config.toml</code>, hoặc <code>~/.config/agent-control-plane/config.toml</code></td></tr>
+                <tr><td>Run state</td><td><code>AGENTCTL_STATE_HOME</code></td><td><code>$XDG_STATE_HOME/agent-control-plane</code>, hoặc <code>~/.local/state/agent-control-plane</code></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </li>
+      </ol>
+
+      <div class="callout good">
+        <strong>State nằm ngoài project</strong>
+        <p>Task đã khóa, patch, evidence, event log, worker log, verifier clone và attachment receipt đều nằm trong state home; không đưa thư mục này vào Git của ứng dụng.</p>
+      </div>
+    </section>
+
+    <section id="worker">
+      <h2>3. Cấu hình OpenCode + DeepSeek đúng cách</h2>
+      <p class="section-intro">Project chỉ biết tên profile ngữ nghĩa như <code>default-implementer</code>. Model, CLI và credential nằm trong user config bên ngoài project.</p>
+
+      <h3>3.1 Cài, đăng nhập và xác nhận model</h3>
+      <pre><code>opencode --version
+opencode auth login
+opencode auth list
+opencode models --refresh
+opencode models</code></pre>
+
+      <p>Chép <strong>đúng</strong> chuỗi <code>provider/model</code> mà <code>opencode models</code> in ra. Tên “DeepSeek V4 Pro” là yêu cầu năng lực, không bảo đảm là model ID trên mọi phiên bản/provider. Không coi model ID trong template là giá trị chắc chắn tồn tại.</p>
+
+      <p>Tài liệu chính thức:</p>
+      <ul>
+        <li><a href="https://opencode.ai/docs/" target="_blank" rel="noopener noreferrer">Cài đặt và bắt đầu với OpenCode</a></li>
+        <li><a href="https://opencode.ai/docs/cli/" target="_blank" rel="noopener noreferrer">OpenCode CLI: auth, models, run và flags</a></li>
+        <li><a href="https://opencode.ai/docs/models/" target="_blank" rel="noopener noreferrer">Cấu hình provider/model</a></li>
+        <li><a href="https://opencode.ai/docs/agents/" target="_blank" rel="noopener noreferrer">Tạo agent OpenCode riêng bằng Markdown</a></li>
+        <li><a href="https://opencode.ai/docs/permissions/" target="_blank" rel="noopener noreferrer">Permission của OpenCode</a></li>
+      </ul>
+
+      <h3>3.2 Tạo user worker profile</h3>
+      <p>Chép <code>templates/user-config.toml</code> tới đường dẫn <code>user_config</code> từ <code>agentctl paths</code>, rồi thay model placeholder bằng ID vừa xác nhận:</p>
+
+      <pre><code>schema_version = 1
+
+[worker_profiles.default-implementer]
+adapter = "generic-cli"
+runtime_id = "opencode-deepseek-worker"
+isolation = "unsafe-host"
+argv = [
+  "opencode", "run",
+  "--format", "json",
+  "--model", "provider/model-confirmed-by-opencode-models",
+  "--agent", "agentctl-worker",
+  "--dir", "{workspace}",
+  "{prompt}"
+]
+probe_argv = ["opencode", "models"]
+probe_contains = "provider/model-confirmed-by-opencode-models"
+env_allow = ["HOME", "XDG_CONFIG_HOME", "DEEPSEEK_API_KEY"]
+timeout_seconds = 1500
+max_output_bytes = 8000000
+prompt = "Read the request contract at {request_file}, then read every task.context_files entry. Implement only its bounded objective. Do not commit, push, access external paths, or change the contract. Leave the workspace ready for controller verification."</code></pre>
+
+      <ul class="checklist">
+        <li>Giữ API key trong auth store của OpenCode hoặc environment của process.</li>
+        <li><code>env_allow</code> chỉ liệt kê <em>tên</em> biến cần truyền; tuyệt đối không ghi giá trị secret vào TOML/JSON/prompt.</li>
+        <li>Controller lọc environment và redact giá trị của các biến được liệt kê khỏi stdout/stderr; đây không phải cơ chế cô lập secret.</li>
+        <li><code>probe_argv</code> liệt kê model và <code>probe_contains</code> phải khớp chính xác model ID dùng trong <code>--model</code>. Điều này vẫn không chứng minh auth/network/sandbox sẽ hoạt động ở lúc generation.</li>
+      </ul>
+
+      <h3>3.3 Permission: lớp phụ, không phải sandbox</h3>
+      <p>Cài deny-first policy đi kèm thành agent OpenCode toàn cục. Theo quy ước của OpenCode, tên file Markdown trở thành tên agent, nên lệnh dưới đây tạo đúng agent <code>agentctl-worker</code> đã dùng trong worker profile:</p>
+
+      <pre><code>mkdir -p "$HOME/.config/opencode/agents"
+cp "$ACP_ROOT/templates/opencode-agent.md" \
+  "$HOME/.config/opencode/agents/agentctl-worker.md"</code></pre>
+
+      <p>Template chỉ cho phép đọc/sửa trong workspace cùng một số lệnh <code>git status</code>/<code>git diff</code>; nó deny external directory, web, task/subagent, skill và các bash command khác. Có thể đặt bản riêng tại <code>.opencode/agents/agentctl-worker.md</code>, nhưng bản global giúp policy runtime nằm ngoài patch surface của project được gắn.</p>
+
+      <div class="callout warn">
+        <strong>Không dùng <code>--auto</code> cho worker chạy trực tiếp trên host</strong>
+        <p>Theo tài liệu OpenCode, <code>--auto</code> tự chấp thuận các yêu cầu permission không bị deny rõ ràng. Quy tắc deny vẫn hữu ích, nhưng lỗi cấu hình permission có thể mở quyền ngoài dự kiến.</p>
+      </div>
+
+      <p>Kiểm tra permission hiệu lực của đúng agent được truyền qua <code>--agent</code>. OpenCode gộp permission riêng của agent với global config và rule riêng có thể override rule global; tốt nhất dùng một agent worker chuyên biệt với deny policy rõ ràng.</p>
+
+      <h3>3.4 Hai chế độ isolation</h3>
+      <div class="grid-2">
+        <article class="card">
+          <span class="tag">Khuyến nghị</span>
+          <h3><code>external-sandbox</code></h3>
+          <p>Chỉ dùng khi <code>argv</code> thật sự đi vào container/VM/OS sandbox trước khi chạy OpenCode. Nhãn này là khai báo; <code>agentctl</code> không tự dựng và không xác minh sandbox.</p>
+        </article>
+        <article class="card">
+          <span class="tag">Opt-in thủ công</span>
+          <h3><code>unsafe-host</code></h3>
+          <p>Dùng cho OpenCode chạy trực tiếp. Mỗi run phải được người dùng cho phép rõ ràng bằng <code>run init --allow-unsafe-worker</code>. Flag chỉ xác nhận chấp nhận rủi ro, không làm process an toàn hơn.</p>
+        </article>
+      </div>
+
+      <p>Validation có khai báo riêng trong <code>.agentctl.toml</code>: <code>validation_isolation</code>. Nếu là <code>unsafe-host</code>, mỗi lần verify cần <code>--allow-unsafe-validation</code>. Validator chạy code ứng viên và có thể tải dependency/network nếu argv của project yêu cầu, vì vậy cũng cần sandbox thật cho unattended execution.</p>
+    </section>
+
+    <section id="gan-project">
+      <h2>4. Gắn module vào một project</h2>
+      <p class="section-intro"><code>project attach</code> tạo đúng một file <code>.agentctl.toml</code>. Nó không tự commit và không ghi đè config đã có.</p>
+
+      <ol class="steps">
+        <li>
+          <h3>Inspect và dry-run</h3>
+          <pre><code>"$ACP" project inspect --project /absolute/path/to/project --json
+"$ACP" project attach --project /absolute/path/to/project --dry-run --json</code></pre>
+        </li>
+        <li>
+          <h3>Tạo adapter phù hợp project</h3>
+          <p>Sao chép <code>templates/project.toml</code>, rồi chỉnh:</p>
+          <ul>
+            <li><code>project_id</code> và tên <code>worker_profile</code>;</li>
+            <li>file chỉ dẫn/context cần được worker đọc;</li>
+            <li>protected path, high-risk path, số file/dòng, patch bytes, số vòng sửa;</li>
+            <li>validation profile, path match, cwd, argv, env và timeout;</li>
+            <li><code>validation_isolation</code> đúng với cách validator thật sự chạy.</li>
+          </ul>
+          <pre><code>"$ACP" project attach \
+  --project /absolute/path/to/project \
+  --template /absolute/path/to/project-adapter.toml \
+  --dry-run --json</code></pre>
+        </li>
+        <li>
+          <h3>Attach thật</h3>
+          <pre><code>"$ACP" project attach \
+  --project /absolute/path/to/project \
+  --template /absolute/path/to/project-adapter.toml --json</code></pre>
+        </li>
+        <li>
+          <h3>Human review và commit adapter</h3>
+          <p>Người dùng kiểm tra <code>.agentctl.toml</code> và mọi file instruction/context, sau đó commit chúng vào project. Các lệnh Git sau là trách nhiệm của người dùng, không phải thao tác mà <code>agentctl</code> thực hiện:</p>
+          <pre><code>git status --short
+sed -n '1,260p' .agentctl.toml
+git diff -- AGENTS.md
+git add .agentctl.toml AGENTS.md
+git diff --cached
+git commit -m "chore: attach agent control plane"</code></pre>
+          <p><code>run init</code> đòi worktree sạch, <code>base_sha</code> bằng <code>HEAD</code>, và mọi context bắt buộc đã nằm trong commit gốc. Vì vậy attach xong nhưng chưa commit thì chưa chạy task được.</p>
+        </li>
+        <li>
+          <h3>Doctor</h3>
+          <pre><code>"$ACP" doctor --project /absolute/path/to/project --json</code></pre>
+          <p><code>doctor</code> kiểm tra config, cleanliness, context trong base, executable của validator và worker probe. Hai declaration <code>unsafe-host</code> luôn được báo non-green có chủ đích; chỉ tiếp tục sau khi hiểu và cho phép các unsafe flag tương ứng.</p>
+        </li>
+      </ol>
+
+      <div class="callout">
+        <strong>Detach có điều kiện</strong>
+        <p><code>project detach</code> chỉ xóa config chưa bị sửa kể từ lúc attach, có receipt, và không có run đang active. Evidence cũ vẫn được giữ. Luôn dùng <code>--dry-run</code> trước.</p>
+      </div>
+    </section>
+
+    <section id="task">
+      <h2>5. Viết task contract nhỏ và kiểm chứng được</h2>
+      <p class="section-intro">Sol bắt đầu từ <code>templates/task.json</code>. Task bị khóa theo hash khi run được tạo; worker không được thay đổi contract.</p>
+
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th>Trường</th><th>Ý nghĩa vận hành</th><th>Quy tắc</th></tr></thead>
+          <tbody>
+            <tr><td><code>task_id</code></td><td>Định danh ngắn của unit</td><td>Chữ thường/số và <code>._-</code>, ổn định trong run</td></tr>
+            <tr><td><code>base_sha</code></td><td>Commit được đóng băng</td><td>Phải đúng bằng <code>HEAD</code> sạch lúc <code>run init</code></td></tr>
+            <tr><td><code>objective</code></td><td>Một thay đổi quan sát được</td><td>Không trộn nhiều mục tiêu độc lập</td></tr>
+            <tr><td><code>acceptance</code></td><td>Tiêu chí + proof</td><td>ID duy nhất; proof là <code>test</code>, <code>diff</code> hoặc <code>manual</code></td></tr>
+            <tr><td><code>allowed_paths</code></td><td>Biên được phép viết</td><td>Không rỗng, đường dẫn tương đối repo</td></tr>
+            <tr><td><code>forbidden_paths</code></td><td>Biên bổ sung bị cấm</td><td>Được hợp với protected path của project</td></tr>
+            <tr><td><code>validation_profiles</code></td><td>Bộ lệnh project phải chạy</td><td>Tên phải tồn tại trong <code>.agentctl.toml</code></td></tr>
+            <tr><td><code>risk_flags</code></td><td>Rủi ro không biểu diễn đủ bằng path</td><td>Có flag thì acceptance cần human gate</td></tr>
+            <tr><td><code>budget</code></td><td>Thời gian và vòng sửa</td><td><code>wall_seconds</code> bị chặn bởi timeout worker; vòng sửa lấy mức nhỏ hơn giữa task và project</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p>Mọi path glob đều neo tại root repository: <code>*</code> không đi qua <code>/</code>, còn <code>**</code> thì có. Vì vậy <code>.env*</code> chỉ chặn file ở root; thêm <code>**/.env*</code> để chặn cả env file lồng bên trong.</p>
+
+      <div class="callout warn">
+        <strong>Không đóng băng sự mơ hồ</strong>
+        <p>Nếu còn câu hỏi làm thay đổi hành vi sản phẩm, security/privacy, data shape, dependency hoặc release scope, Sol dừng và hỏi người dùng trước. Task không chứa provider/model, CLI flags, credential hay suy luận ẩn.</p>
+      </div>
+
+      <p><code>schemas/plan.schema.json</code> có thể dùng để biểu diễn kế hoạch nhiều unit, nhưng CLI hiện tại khởi tạo từng task JSON; không có lệnh <code>agentctl plan</code>.</p>
+    </section>
+
+    <section id="van-hanh">
+      <h2>6. Chạy một vòng hoàn chỉnh</h2>
+      <p class="section-intro">Luôn đọc JSON output và giữ chính xác <code>run_id</code> do controller trả về.</p>
+
+      <h3>State flow chuẩn</h3>
+      <div class="flow" aria-label="Luồng trạng thái chuẩn">
+        <div class="state">initialized</div><div class="arrow">→</div>
+        <div class="state">dispatching</div><div class="arrow">→</div>
+        <div class="state">candidate</div><div class="arrow">→</div>
+        <div class="state">verifying</div><div class="arrow">→</div>
+        <div class="state">ready_for_review</div><div class="arrow">→</div>
+        <div class="state">reviewing</div><div class="arrow">→</div>
+        <div class="state">accepted</div><div class="arrow">→</div>
+        <div class="state">integrated</div>
+      </div>
+
+      <div class="branches">
+        <div class="branch"><code>verify_failed → dispatching</code><br>Vòng sửa cơ học; evidence lỗi tự được đưa vào request tiếp theo.</div>
+        <div class="branch"><code>repair_queued → dispatching</code><br>Sol đã review và yêu cầu sửa semantic có giới hạn.</div>
+        <div class="branch"><code>human_required → accepted</code><br>Chỉ sau human approval gắn đủ hash.</div>
+        <div class="branch"><code>reviewing → replan_required</code><br>Contract/base mới; run hiện tại kết thúc.</div>
+        <div class="branch"><code>failed / cancelled</code><br>Terminal state; không tự coi là thành công.</div>
+      </div>
+
+      <ol class="steps">
+        <li>
+          <h3>Khởi tạo run</h3>
+          <pre><code>"$ACP" run init \
+  --project /absolute/path/to/project \
+  --task /absolute/path/to/task.json --json</code></pre>
+          <p>Nếu profile worker được khai báo <code>unsafe-host</code> và người dùng đã cho phép rõ ràng:</p>
+          <pre><code>"$ACP" run init \
+  --project /absolute/path/to/project \
+  --task /absolute/path/to/task.json \
+  --allow-unsafe-worker --json</code></pre>
+          <p>Gán giá trị <code>run_id</code> trả về thành <code>RUN_ID</code>.</p>
+        </li>
+        <li>
+          <h3>Dispatch đúng một worker unit</h3>
+          <pre><code>"$ACP" unit dispatch \
+  --project /absolute/path/to/project \
+  --run "$RUN_ID" --json</code></pre>
+          <p>Controller tạo clone độc lập ở đúng base SHA, bỏ remote <code>origin</code>, rồi giới hạn thời gian/output. Khi chụp patch, controller dùng Git metadata nông do chính nó sở hữu và chỉ trỏ work tree vào file của worker; commit, index hoặc <code>.git/config</code> do worker sửa không thể che patch.</p>
+        </li>
+        <li>
+          <h3>Verify</h3>
+          <pre><code>"$ACP" unit verify \
+  --project /absolute/path/to/project \
+  --run "$RUN_ID" --json</code></pre>
+          <p>Nếu validator là <code>unsafe-host</code> và đã được human cho phép:</p>
+          <pre><code>"$ACP" unit verify \
+  --project /absolute/path/to/project \
+  --run "$RUN_ID" \
+  --allow-unsafe-validation --json</code></pre>
+          <p>Verifier kiểm tra allowed/forbidden/protected paths, ngân sách file/dòng/bytes, binary/symlink, validation coverage và chạy argv đã chọn trong clone tươi. Nếu validator sửa patch được review, evidence bị đánh fail.</p>
+        </li>
+        <li>
+          <h3>Theo dõi hoặc hủy</h3>
+          <pre><code>"$ACP" run status --project /absolute/path/to/project --run "$RUN_ID" --json
+"$ACP" run status --project /absolute/path/to/project --json
+"$ACP" run cancel --project /absolute/path/to/project --run "$RUN_ID" --json</code></pre>
+          <p>Khi worker/verifier đang chạy, cancel trả <code>cancel_requested</code>; poll status cho tới khi process dừng.</p>
+        </li>
+      </ol>
+
+      <h3>Artifact nào là nguồn sự thật?</h3>
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th>Artifact</th><th>Nội dung</th><th>Mức tin cậy</th></tr></thead>
+          <tbody>
+            <tr><td><code>task.json</code></td><td>Contract đã khóa + context bắt buộc</td><td>Gắn <code>task_sha256</code></td></tr>
+            <tr><td><code>patch.diff</code></td><td>Git-derived patch so với base</td><td>Gắn <code>patch_sha256</code></td></tr>
+            <tr><td><code>evidence.json</code></td><td>Scope, risk, commands, exit code, duration, log hash</td><td>Nguồn kiểm chứng cơ học</td></tr>
+            <tr><td><code>review-pack.json</code></td><td>Task + patch + evidence đóng gói cho Sol</td><td>Không tin worker self-report</td></tr>
+            <tr><td><code>review.json</code></td><td>Quyết định semantic gắn task/patch/evidence hash</td><td>Do Sol tạo</td></tr>
+            <tr><td><code>human-approval.json</code></td><td>Identity + rationale + bốn hash chính xác</td><td>Chỉ do human tạo</td></tr>
+            <tr><td><code>events.jsonl</code></td><td>Nhật ký transition append-only</td><td>Controller sở hữu state</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="review">
+      <h2>7. Review, human gate và tích hợp</h2>
+
+      <ol class="steps">
+        <li>
+          <h3>Tạo review pack sau khi evidence xanh</h3>
+          <pre><code>"$ACP" review pack \
+  --project /absolute/path/to/project \
+  --run "$RUN_ID" --json</code></pre>
+          <p>Mở đúng path <code>review_pack</code> được trả về. Sol chỉ review task, patch, evidence, invariants và uncertainty trong pack; không dùng worker transcript làm chứng cứ.</p>
+        </li>
+        <li>
+          <h3>Chọn đúng một decision</h3>
+          <div class="table-scroll">
+            <table>
+              <thead><tr><th>Decision</th><th>Khi nào dùng</th><th>Điều kiện quan trọng</th></tr></thead>
+              <tbody>
+                <tr><td><code>accept</code></td><td>Mọi tiêu chí đạt</td><td>Đủ chính xác mọi acceptance ID; không blocker/major; không high-risk file/flag</td></tr>
+                <tr><td><code>repair</code></td><td>Contract vẫn đúng, lỗi sửa gọn được</td><td>Ít nhất một finding blocker/major và còn budget</td></tr>
+                <tr><td><code>replan</code></td><td>Cần đổi objective/scope/base/dependency</td><td>Tạo task/run mới; không lách bằng sửa contract cũ</td></tr>
+                <tr><td><code>human_required</code></td><td>Evidence xanh nhưng cần thẩm quyền/rủi ro cao</td><td>Human phải duyệt đúng patch và toàn bộ hash</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p>Mọi decision khác <code>accept</code> phải có ít nhất một finding hành động được; riêng <code>repair</code> bắt buộc có finding mức blocker hoặc major.</p>
+          <p>Bắt đầu từ <code>templates/review.json</code>, chép đúng các hash trong state/pack và viết finding cụ thể: ID, severity, failure mode, required change.</p>
+        </li>
+        <li>
+          <h3>Submit review</h3>
+          <pre><code>"$ACP" decision submit \
+  --project /absolute/path/to/project \
+  --run "$RUN_ID" \
+  --file /absolute/path/to/review.json --json</code></pre>
+          <p>Patch thay đổi một byte cũng làm quyết định cũ vô hiệu. Không sửa hash bằng tay để vượt gate.</p>
+        </li>
+        <li>
+          <h3>Nếu cần human approval</h3>
+          <p>Human mở task/patch/evidence/review đã khóa, điền <code>templates/human-approval.json</code> với <code>patch_sha256</code>, <code>task_sha256</code>, <code>evidence_sha256</code>, <code>review_sha256</code>, identity và rationale thật. <code>approved_by</code> phải là identifier dạng <code>[a-z0-9][a-z0-9._-]{0,127}</code>, ví dụ <code>truongphuhung</code>, không phải display name hay email:</p>
+          <pre><code>"$ACP" decision approve-human \
+  --project /absolute/path/to/project \
+  --run "$RUN_ID" \
+  --file /absolute/path/to/human-approval.json --json</code></pre>
+        </li>
+        <li>
+          <h3>Dry-run integration trước</h3>
+          <pre><code>"$ACP" integrate \
+  --project /absolute/path/to/project \
+  --run "$RUN_ID" --dry-run --json</code></pre>
+          <p>Nếu không ghi <code>--dry-run</code> hay <code>--apply</code>, mặc định vẫn là dry-run. Project phải có worktree sạch và <code>HEAD</code> đúng base SHA đã review.</p>
+        </li>
+        <li>
+          <h3>Chỉ apply khi human đã cho phép</h3>
+          <pre><code>"$ACP" integrate \
+  --project /absolute/path/to/project \
+  --run "$RUN_ID" --apply --json</code></pre>
+          <p>Kết quả ghi rõ <code>committed: false</code> và <code>pushed: false</code>. Human xem diff, chạy check bổ sung nếu cần, rồi tự stage/commit/push/merge/deploy theo quy trình project.</p>
+        </li>
+      </ol>
+
+      <div class="callout danger">
+        <strong>Những việc agentctl không bao giờ làm</strong>
+        <p>Không commit. Không push. Không merge. Không deploy. Nó có thể áp patch vào worktree khi nhận <code>--apply</code>, và validator có thể chạy bất kỳ argv nào project đã cấu hình — vì thế phải review config và isolation trước.</p>
+      </div>
+    </section>
+
+    <section id="social-match">
+      <h2>8. Ví dụ với <code>social_match</code></h2>
+      <p class="section-intro">Adapter đã chuẩn bị cho project này dùng profile <code>default-implementer</code>, context kiến trúc/yêu cầu, protected/high-risk paths hẹp và các validation profile <code>docs</code>, <code>client</code>, <code>server</code>, <code>vertical-slice</code>, <code>migration</code>, <code>containers</code>.</p>
+
+      <h3>8.1 Hoàn tất attach policy</h3>
+      <pre><code>PROJECT=/absolute/path/to/social_match
+"$ACP" project inspect --project "$PROJECT" --json
+git -C "$PROJECT" status --short
+sed -n '1,320p' "$PROJECT/.agentctl.toml"
+git -C "$PROJECT" diff -- AGENTS.md</code></pre>
+
+      <p>Nếu <code>.agentctl.toml</code> và <code>AGENTS.md</code> chưa nằm trong <code>HEAD</code>, human cần review rồi commit chúng. Không khởi tạo task khi worktree còn dirty. Sau đó:</p>
+
+      <pre><code>"$ACP" doctor --project "$PROJECT" --json</code></pre>
+
+      <div class="callout warn">
+        <strong>Đọc kết quả doctor đúng ngữ cảnh</strong>
+        <p>Máy chưa có <code>mix</code> sẽ báo các server validator không khả dụng, kể cả task docs. Adapter hiện khai báo validation <code>unsafe-host</code>, và profile OpenCode trực tiếp cũng thường là <code>unsafe-host</code>; hai check isolation vì vậy non-green có chủ đích. Cài tool còn thiếu hoặc dùng sandbox thật, và chỉ dùng unsafe flags sau khi human cho phép.</p>
+      </div>
+
+      <h3>8.2 Task docs nhỏ, đặt ngoài repository</h3>
+      <p>Tạo một JSON ngoài worktree (ví dụ trong thư mục tạm), thay SHA bằng đúng <code>git -C "$PROJECT" rev-parse HEAD</code>:</p>
+
+      <pre><code>{
+  "contract_version": 1,
+  "task_id": "clarify-match-rule",
+  "base_sha": "CURRENT_SOCIAL_MATCH_HEAD_SHA",
+  "objective": "Clarify one approved match rule in requirements without changing behavior.",
+  "acceptance": [
+    {
+      "id": "ac1",
+      "claim": "The existing rule is unambiguous and adds no new behavior.",
+      "proof": "diff"
+    }
+  ],
+  "non_goals": ["No runtime code changes", "No new product policy"],
+  "context_files": ["docs/product/requirements.md"],
+  "allowed_paths": ["docs/product/requirements.md"],
+  "forbidden_paths": ["AGENTS.md", ".agentctl.toml", ".github/**", ".env*", "**/.env*"],
+  "validation_profiles": ["docs"],
+  "risk_flags": [],
+  "budget": {"wall_seconds": 900, "max_fix_rounds": 1}
+}</code></pre>
+
+      <h3>8.3 Chạy theo protocol</h3>
+      <pre><code>"$ACP" run init --project "$PROJECT" --task /absolute/path/to/task.json \
+  --allow-unsafe-worker --json
+
+# Đặt RUN_ID bằng giá trị JSON vừa trả về.
+"$ACP" unit dispatch --project "$PROJECT" --run "$RUN_ID" --json
+"$ACP" unit verify --project "$PROJECT" --run "$RUN_ID" \
+  --allow-unsafe-validation --json
+"$ACP" review pack --project "$PROJECT" --run "$RUN_ID" --json</code></pre>
+
+      <p>Hai unsafe flag trong ví dụ chỉ hợp lệ sau khi người dùng đã chấp nhận chạy trực tiếp trên host. Nếu đã bọc cả worker lẫn validator bằng sandbox thật và khai báo đúng <code>external-sandbox</code>, bỏ hai flag này.</p>
+    </section>
+
+    <section id="xu-ly-loi">
+      <h2>9. Doctor và xử lý sự cố</h2>
+
+      <details open>
+        <summary><code>dirty_worktree</code>, <code>config_in_base: false</code>, <code>context_not_in_base</code></summary>
+        <div><p>Adapter/context chưa được commit hoặc worktree còn thay đổi. Human xác định chính xác thay đổi cần giữ, commit chúng, lấy <code>HEAD</code> mới và tạo lại task. Không tự reset hay xoá việc của người khác.</p></div>
+      </details>
+
+      <details>
+        <summary><code>worker_profile_not_found</code> hoặc <code>worker_unavailable</code></summary>
+        <div><p>Đồng bộ tên profile giữa <code>.agentctl.toml</code> và user config; kiểm tra path từ <code>agentctl paths</code>, <code>PATH</code>, <code>probe_argv</code>, Python/OpenCode. Có thể dùng <code>--user-config /path/config.toml</code> khi cần config khác.</p></div>
+      </details>
+
+      <details>
+        <summary>Probe xanh nhưng model/provider vẫn lỗi</summary>
+        <div><p>Probe template chạy unfiltered <code>opencode models</code> và kiểm tra <code>probe_contains</code>. Chạy thêm <code>opencode auth list</code> và <code>opencode models --refresh</code>, rồi chép chính xác ID do runtime in. Doctor không xác minh auth, network hay chất lượng sandbox.</p></div>
+      </details>
+
+      <details>
+        <summary><code>unsafe_worker_requires_opt_in</code> / <code>unsafe_validation_requires_opt_in</code></summary>
+        <div><p>Đây là gate chủ ý. Tốt nhất dựng external sandbox. Nếu human chấp nhận host execution, thêm đúng flag ở đúng bước. Flag không tăng mức cô lập.</p></div>
+      </details>
+
+      <details>
+        <summary><code>unknown_validation_profile</code> / <code>no_profiled_validation_for_path</code></summary>
+        <div><p>Task yêu cầu profile chưa tồn tại, hoặc file thay đổi không được command nào trong profile bao phủ. Sửa task/config ở một base mới thay vì bỏ qua validation.</p></div>
+      </details>
+
+      <details>
+        <summary><code>verify_failed</code></summary>
+        <div><p>Mở <code>evidence.json</code> và log path/hash trong run root. Nếu là lỗi cơ học có phạm vi rõ và còn budget, dispatch lại; controller tự đưa evidence lỗi vào repair context. Không tạo review pack khi evidence chưa xanh.</p></div>
+      </details>
+
+      <details>
+        <summary><code>config_drift</code>, <code>patch_drift</code>, <code>artifact_tampered</code>, <code>review_mismatch</code></summary>
+        <div><p>Dừng ngay. Không sao chép/sửa hash để vượt gate. Khôi phục artifact đúng hoặc tạo run mới từ base sạch. Mọi thay đổi patch làm review cũ mất hiệu lực.</p></div>
+      </details>
+
+      <details>
+        <summary><code>base_sha_drift</code> khi integrate</summary>
+        <div><p><code>HEAD</code> project đã khác commit được review. Không áp patch cũ lên base mới; tạo task/run mới để evidence và decision gắn đúng code hiện tại.</p></div>
+      </details>
+
+      <details>
+        <summary>Timeout, output limit hoặc exit code 127</summary>
+        <div><p>Dùng <code>run status --run</code> lấy <code>run_root</code>, đọc worker/verifier result và log. Exit 127 thường là executable không có; timeout/output limit cần thu nhỏ task hoặc sửa runtime/command. Không coi log thiếu là pass.</p></div>
+      </details>
+
+      <div class="callout good">
+        <strong>Báo lỗi mà không làm lộ secret</strong>
+        <p>Gửi error code, run ID, base SHA, patch SHA và tên check thất bại. Không gửi API key, auth store, raw environment hay log chưa kiểm tra.</p>
+      </div>
+    </section>
+
+    <section id="checklist-cuoi">
+      <h2>10. Checklist trước khi bấm chạy</h2>
+      <ul class="checklist">
+        <li>Project adapter và mọi instruction/context đã được human review + commit.</li>
+        <li>Worktree sạch; task base SHA đúng bằng <code>HEAD</code>.</li>
+        <li>Model ID được xác nhận bằng <code>opencode models</code>, không đoán theo tên marketing.</li>
+        <li>Credential nằm ngoài repository/task/prompt.</li>
+        <li>Worker và validator có sandbox thật; nếu không, human đã cho phép rõ hai unsafe flag.</li>
+        <li>OpenCode permission chặn external directory, commit/push và capability không cần thiết.</li>
+        <li>Task có một objective, đường dẫn hẹp, tiêu chí có proof và budget hữu hạn.</li>
+        <li>Sol chỉ review frozen pack và mọi decision gắn đúng hash.</li>
+        <li>High-risk patch đi qua <code>human_required</code> và approval thật.</li>
+        <li><code>integrate --dry-run</code> đạt trước <code>--apply</code>; human giữ quyền Git/release.</li>
+      </ul>
+    </section>
+  </main>
+
+  <footer class="wrap">
+    Agent Control Plane · Hướng dẫn người dùng cho protocol v1 · Không cần JavaScript hay tài nguyên CSS bên ngoài.
+  </footer>
+</body>
+</html>

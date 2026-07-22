@@ -1,0 +1,10 @@
+{
+  "contract_version": 1,
+  "run_id": "replace-with-run-id",
+  "patch_sha256": "replace-with-patch-sha256",
+  "task_sha256": "replace-with-task-sha256",
+  "evidence_sha256": "replace-with-evidence-sha256",
+  "review_sha256": "replace-with-review-sha256",
+  "approved_by": "replace-with-human-identifier",
+  "rationale": "Record what was reviewed and why this exact high-risk patch is approved."
+}

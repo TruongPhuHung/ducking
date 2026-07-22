@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://local.agent-control-plane/schemas/human-approval-v1.json",
+  "title": "Agent Control Plane Human Approval v1",
+  "type": "object",
+  "required": [
+    "contract_version",
+    "run_id",
+    "patch_sha256",
+    "task_sha256",
+    "evidence_sha256",
+    "review_sha256",
+    "approved_by",
+    "rationale"
+  ],
+  "properties": {
+    "contract_version": {"const": 1},
+    "run_id": {"type": "string"},
+    "patch_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "task_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "evidence_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "review_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "approved_by": {"type": "string"},
+    "rationale": {"type": "string", "minLength": 1}
+  },
+  "additionalProperties": false
+}

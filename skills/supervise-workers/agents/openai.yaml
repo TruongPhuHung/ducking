@@ -1,0 +1,4 @@
+interface:
+  display_name: "Supervise CLI Workers"
+  short_description: "Plan, dispatch, verify, and review CLI workers"
+  default_prompt: "Use $supervise-workers to plan a change, dispatch bounded workers, verify the patch, and review it."

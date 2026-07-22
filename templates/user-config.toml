@@ -1,0 +1,32 @@
+schema_version = 1
+
+# This semantic profile can be replaced without changing attached projects.
+# Confirm the exact model identifier with `opencode models` for your installed
+# OpenCode version before use.
+[worker_profiles.default-implementer]
+adapter = "generic-cli"
+runtime_id = "opencode-deepseek-v4-pro"
+# Direct OpenCode execution is not an OS sandbox. agentctl refuses to initialize
+# this profile unless the caller explicitly supplies --allow-unsafe-worker.
+# Replace argv with a container/OS-sandbox wrapper and set external-sandbox for
+# unattended use.
+isolation = "unsafe-host"
+argv = [
+  "opencode",
+  "run",
+  "--format",
+  "json",
+  "--model",
+  "deepseek/deepseek-v4-pro",
+  "--agent",
+  "agentctl-worker",
+  "--dir",
+  "{workspace}",
+  "{prompt}"
+]
+probe_argv = ["opencode", "models"]
+probe_contains = "deepseek/deepseek-v4-pro"
+env_allow = ["HOME", "XDG_CONFIG_HOME", "DEEPSEEK_API_KEY"]
+timeout_seconds = 1500
+max_output_bytes = 8000000
+prompt = "Read the request contract at {request_file}, then read every task.context_files entry. Implement only its bounded objective. Do not commit, push, access external paths, or change the contract. Leave the workspace ready for controller verification."

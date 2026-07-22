@@ -1,0 +1,23 @@
+schema_version = 1
+project_id = "replace-me"
+worker_profile = "default-implementer"
+instruction_files = ["AGENTS.md"]
+context_files = []
+protected_paths = [".agentctl.toml", ".gitattributes", ".git", ".git/**", ".env*", "**/.env*"]
+high_risk_paths = [".github/**", "**/migrations/**", "**/package-lock.json", "**/mix.lock"]
+max_parallel = 1
+max_fix_rounds = 2
+max_files_per_unit = 6
+max_changed_lines_per_unit = 300
+max_patch_bytes = 5000000
+# Set external-sandbox only when every validator argv enters a real container or
+# OS sandbox. unsafe-host requires --allow-unsafe-validation for each run.
+validation_isolation = "unsafe-host"
+
+[[validation.commands]]
+name = "git-diff-check"
+profiles = ["always", "default"]
+match = ["**"]
+cwd = "."
+argv = ["git", "diff", "--check"]
+timeout_seconds = 60

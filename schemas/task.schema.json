@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://local.agent-control-plane/schemas/task-v1.json",
+  "title": "Agent Control Plane Task v1",
+  "type": "object",
+  "required": [
+    "contract_version",
+    "task_id",
+    "base_sha",
+    "objective",
+    "acceptance",
+    "context_files",
+    "allowed_paths",
+    "forbidden_paths",
+    "validation_profiles",
+    "budget"
+  ],
+  "properties": {
+    "contract_version": {"const": 1},
+    "task_id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9._-]{0,127}$"},
+    "base_sha": {"type": "string", "pattern": "^[0-9a-fA-F]{7,64}$"},
+    "objective": {"type": "string", "minLength": 1},
+    "acceptance": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["id", "claim", "proof"],
+        "properties": {
+          "id": {"type": "string"},
+          "claim": {"type": "string", "minLength": 1},
+          "proof": {"enum": ["test", "diff", "manual"]}
+        },
+        "additionalProperties": true
+      }
+    },
+    "non_goals": {"type": "array", "items": {"type": "string"}},
+    "context_files": {"type": "array", "items": {"type": "string"}},
+    "allowed_paths": {"type": "array", "minItems": 1, "items": {"type": "string"}},
+    "forbidden_paths": {"type": "array", "items": {"type": "string"}},
+    "validation_profiles": {"type": "array", "minItems": 1, "items": {"type": "string"}},
+    "risk_flags": {"type": "array", "items": {"type": "string"}},
+    "budget": {
+      "type": "object",
+      "required": ["wall_seconds", "max_fix_rounds"],
+      "properties": {
+        "wall_seconds": {"type": "integer", "minimum": 1},
+        "max_fix_rounds": {"type": "integer", "minimum": 0}
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

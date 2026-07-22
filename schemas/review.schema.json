@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://local.agent-control-plane/schemas/review-v1.json",
+  "title": "Agent Control Plane Review v1",
+  "type": "object",
+  "required": ["contract_version", "run_id", "patch_sha256", "task_sha256", "evidence_sha256", "decision", "criteria", "findings"],
+  "properties": {
+    "contract_version": {"const": 1},
+    "run_id": {"type": "string"},
+    "patch_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "task_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "evidence_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "decision": {"enum": ["accept", "repair", "replan", "human_required"]},
+    "criteria": {"type": "array", "items": {"type": "object"}},
+    "findings": {"type": "array", "items": {"type": "object"}}
+  },
+  "additionalProperties": true
+}

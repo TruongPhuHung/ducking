@@ -1,0 +1,23 @@
+{
+  "contract_version": 1,
+  "task_id": "example-task",
+  "base_sha": "replace-with-current-head-sha",
+  "objective": "Describe one bounded, externally observable change.",
+  "acceptance": [
+    {
+      "id": "ac1",
+      "claim": "The requested behavior is implemented.",
+      "proof": "test"
+    }
+  ],
+  "non_goals": [],
+  "context_files": ["AGENTS.md"],
+  "allowed_paths": ["src/**", "tests/**"],
+  "forbidden_paths": [".gitattributes", ".env*", "**/.env*", ".github/**"],
+  "validation_profiles": ["default"],
+  "risk_flags": [],
+  "budget": {
+    "wall_seconds": 1500,
+    "max_fix_rounds": 2
+  }
+}

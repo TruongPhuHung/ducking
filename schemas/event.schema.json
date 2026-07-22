@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://local.agent-control-plane/schemas/event-v1.json",
+  "title": "Agent Control Plane Event v1",
+  "type": "object",
+  "required": ["protocol_version", "seq", "ts", "run_id", "actor", "from", "to", "reason", "artifacts"],
+  "properties": {
+    "protocol_version": {"const": 1},
+    "seq": {"type": "integer", "minimum": 1},
+    "ts": {"type": "string"},
+    "run_id": {"type": "string"},
+    "actor": {"type": "string"},
+    "from": {"type": ["string", "null"]},
+    "to": {"type": "string"},
+    "reason": {"type": "string"},
+    "artifacts": {"type": "object"}
+  },
+  "additionalProperties": false
+}

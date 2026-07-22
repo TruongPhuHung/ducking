@@ -1,0 +1,20 @@
+{
+  "name": "agent-control-plane",
+  "version": "0.1.0",
+  "description": "Reusable control plane for supervised CLI coding workers",
+  "author": {
+    "name": "TruongPhuHung"
+  },
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Agent Control Plane",
+    "shortDescription": "Supervise lower-cost CLI coding workers.",
+    "longDescription": "Plan and review with Codex while a provider-neutral local control plane dispatches bounded CLI coding workers and verifies their patches.",
+    "developerName": "TruongPhuHung",
+    "category": "Productivity",
+    "capabilities": ["Interactive", "Write"],
+    "defaultPrompt": [
+      "Plan this change, dispatch a bounded CLI worker, and review its verified patch."
+    ]
+  }
+}

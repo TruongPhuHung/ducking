@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://local.agent-control-plane/schemas/evidence-v1.json",
+  "title": "Agent Control Plane Evidence v1",
+  "type": "object",
+  "required": [
+    "contract_version",
+    "run_id",
+    "passed",
+    "patch_sha256",
+    "changed_files",
+    "scope_violations",
+    "commands"
+  ],
+  "properties": {
+    "contract_version": {"const": 1},
+    "run_id": {"type": "string"},
+    "passed": {"type": "boolean"},
+    "patch_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "changed_files": {"type": "array", "items": {"type": "string"}},
+    "symlink_files": {"type": "array", "items": {"type": "string"}},
+    "scope_violations": {"type": "array", "items": {"type": "object"}},
+    "high_risk_files": {"type": "array", "items": {"type": "string"}},
+    "high_risk_flags": {"type": "array", "items": {"type": "string"}},
+    "commands": {"type": "array", "items": {"type": "object"}}
+  },
+  "additionalProperties": true
+}

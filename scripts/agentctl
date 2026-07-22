@@ -1,0 +1,35 @@
+#!/bin/sh
+set -eu
+
+plugin_root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+
+is_supported_python() {
+  "$1" -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 11) else 1)' >/dev/null 2>&1
+}
+
+if [ -n "${AGENTCTL_PYTHON:-}" ]; then
+  if ! is_supported_python "$AGENTCTL_PYTHON"; then
+    echo "agentctl: AGENTCTL_PYTHON must point to Python 3.11 or newer" >&2
+    exit 2
+  fi
+  python_bin=$AGENTCTL_PYTHON
+else
+  python_bin=""
+  codex_python="${HOME:-}/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/bin/python3"
+  for candidate in python3.13 python3.12 python3.11 \
+    "$codex_python" \
+    python3
+  do
+    if command -v "$candidate" >/dev/null 2>&1 && is_supported_python "$candidate"; then
+      python_bin=$candidate
+      break
+    fi
+  done
+  if [ -z "$python_bin" ]; then
+    echo "agentctl: Python 3.11 or newer is required" >&2
+    echo "Set AGENTCTL_PYTHON to an eligible interpreter." >&2
+    exit 2
+  fi
+fi
+
+PYTHONPATH="$plugin_root${PYTHONPATH:+:$PYTHONPATH}" exec "$python_bin" -B -m agentctl "$@"
