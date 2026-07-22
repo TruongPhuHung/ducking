@@ -530,12 +530,18 @@ dashboard:
   --flock "$FLOCK_ID" --port 8765 --allow-unsafe-supervisor
 ```
 
-It streams a credential-free projection of the six slots, tasks, lease ages,
-semantic outbox, alerts, and durable events over SSE. Mutating requests require
+It streams a credential-free live graph of Sol, Top, Mother, the six slots,
+tasks, lease ages, semantic outbox, alerts, and durable events over SSE. Each
+duck shows a short state-derived quack; it is bounded display text, not model
+conversation or shared context. Mutating requests require
 the page's per-process action token; cancellation additionally requires the
 exact flock ID, and Mother/Top dispatch requires an explicit cost confirmation.
 Without `--allow-unsafe-supervisor`, those dispatch buttons remain disabled.
 The dashboard does not spawn child processes or replace the external runner.
+Sol should remain asleep while its pending count is zero. A resident runner or
+notification adapter owns heartbeat/sweep polling and wakes Sol only for a
+durable replan, senior anomaly, or final-review event; do not put
+`supervisor next --role sol` in a Sol conversation loop.
 
 Drain one pending mother/top snapshot per dispatch call:
 

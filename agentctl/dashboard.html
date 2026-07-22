@@ -91,6 +91,32 @@
     .badge.good { color: var(--brand); background: var(--brand-soft); }
     .badge.warn { color: var(--warn); background: var(--warn-soft); }
     .badge.bad { color: var(--danger); background: var(--danger-soft); }
+    .graph-card { padding: 16px; overflow: hidden; }
+    .graph-scroll { overflow-x: auto; padding: 8px 2px 14px; }
+    .flock-graph { position: relative; min-width: 1040px; min-height: 610px; isolation: isolate; }
+    .graph-edges { position: absolute; inset: 0; width: 100%; height: 100%; z-index: -1; overflow: visible; }
+    .graph-edge { stroke: var(--line); stroke-width: 2; fill: none; opacity: .75; }
+    .graph-edge.active { stroke: var(--brand); stroke-width: 3; opacity: 1; stroke-dasharray: 8 7; animation: flow 1.2s linear infinite; }
+    .graph-edge.pending { stroke: var(--warn); stroke-width: 3; opacity: 1; }
+    @keyframes flow { to { stroke-dashoffset: -30; } }
+    .graph-level { position: absolute; left: 0; right: 0; display: flex; justify-content: center; gap: 46px; }
+    .graph-level.supervisors { top: 8px; }
+    .graph-level.ducks { top: 205px; justify-content: space-between; gap: 12px; }
+    .graph-level.tasks { top: 475px; gap: 18px; }
+    .graph-node { width: 168px; min-height: 112px; padding: 13px; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); box-shadow: var(--shadow); }
+    .graph-node.supervisor { width: 180px; text-align: center; }
+    .graph-node.duck-node { width: 158px; min-height: 225px; position: relative; }
+    .graph-node.task-node { width: min(270px, 28vw); min-width: 210px; min-height: 92px; }
+    .graph-node.active { border-color: var(--brand); box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 14%, transparent), var(--shadow); }
+    .graph-node.pending { border-color: var(--warn); }
+    .node-icon { display: block; font-size: 29px; margin-bottom: 5px; }
+    .node-title { font-weight: 750; overflow-wrap: anywhere; }
+    .node-meta { margin-top: 6px; color: var(--muted); font-size: 11px; line-height: 1.45; }
+    .duck-node.active .node-icon { animation: bob 1.8s ease-in-out infinite; }
+    .quack { position: relative; margin-top: 12px; padding: 10px 11px; border-radius: 12px; background: var(--brand-soft); color: var(--text); font-size: 12px; line-height: 1.45; }
+    .quack::before { content: ""; position: absolute; top: -6px; left: 18px; width: 12px; height: 12px; background: var(--brand-soft); transform: rotate(45deg); }
+    .quack-label { display: block; color: var(--brand); font-size: 10px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; margin-bottom: 3px; }
+    .sleeping { opacity: .72; }
     .main-grid { display: grid; grid-template-columns: minmax(0, 1.65fr) minmax(290px, .7fr); gap: 14px; }
     .main-grid > * { min-width: 0; }
     .panel { padding: 16px; min-width: 0; }
@@ -127,6 +153,7 @@
       .controls { justify-content: flex-start; }
       .summary { grid-template-columns: repeat(2, 1fr); }
       .duck-grid { grid-template-columns: repeat(2, 1fr); }
+      .graph-card { padding: 12px; }
     }
     @media (max-width: 420px) {
       .summary, .duck-grid { grid-template-columns: 1fr; }
@@ -167,9 +194,16 @@
       <article class="card stat"><div class="stat-label">Semantic pending</div><div class="stat-value" id="semantic-total">—</div><div class="stat-meta" id="semantic-meta">—</div></article>
     </section>
 
-    <section class="section">
-      <div class="section-head"><h2>Duck pool</h2><span>heartbeat / progress age cập nhật mỗi giây</span></div>
-      <div class="duck-grid" id="duck-grid"></div>
+    <section class="section card graph-card">
+      <div class="section-head"><h2>Live flock graph</h2><span>Sol ngủ theo event · duck quacking theo state</span></div>
+      <div class="graph-scroll">
+        <div class="flock-graph" id="flock-graph" role="img" aria-label="Graph Sol, Top, Duck Mother, six child ducks, and tasks">
+          <svg class="graph-edges" id="graph-edges" aria-hidden="true"></svg>
+          <div class="graph-level supervisors" id="graph-supervisors"></div>
+          <div class="graph-level ducks" id="graph-ducks"></div>
+          <div class="graph-level tasks" id="graph-tasks"></div>
+        </div>
+      </div>
     </section>
 
     <section class="main-grid">
@@ -243,7 +277,7 @@
       const pendingTotal = Object.values(flock.pending_semantic).reduce((sum, value) => sum + value, 0);
       $("semantic-total").textContent = pendingTotal;
       $("semantic-meta").textContent = `Mother ${flock.pending_semantic.mother} · Top ${flock.pending_semantic.top} · Sol ${flock.pending_semantic.sol}`;
-      renderDucks(data.ducks);
+      renderGraph(data);
       renderTasks(data.tasks);
       renderSemantic(data.pending, flock.pending_semantic);
       renderAlerts(data.alerts);
@@ -251,18 +285,87 @@
       updateControls(flock);
     }
 
-    function renderDucks(ducks) {
-      $("duck-grid").innerHTML = ducks.map((duck) => {
+    function duckQuack(duck) {
+      if (duck.state !== "busy") return "Mình đang chờ Duck Mẹ giao một atom task.";
+      const task = short(duck.task_id, 34);
+      const phaseCopy = {
+        starting: `Mình vừa nhận ${task} và đang chuẩn bị branch cô lập.`,
+        dispatching: `Mình đang triển khai ${task} trong sandbox riêng.`,
+        working: `Mình đang làm ${task}; heartbeat vẫn khỏe.`,
+        verifying: `Mình đã có candidate cho ${task}. Verifier đang chạy build và lint.`,
+        repairing: `Verifier tìm thấy vấn đề ở ${task}. Mình đang sửa trong repair round có giới hạn.`,
+        soft_stalled: `Mình đang mắc ở ${task}. Duck Mẹ đã được báo để quyết định chờ, recycle hoặc gọi Sol.`,
+      }[duck.phase] || `Mình đang xử lý ${task} ở phase ${duck.phase || "working"}.`;
+      const summary = short(duck.summary, 94).trim();
+      return summary ? `${phaseCopy} ${summary.replace(/[.!?]+$/, "")}.` : phaseCopy;
+    }
+
+    function supervisorNode(id, icon, title, pending, sleepCopy) {
+      const sleeping = pending === 0;
+      return `<article class="graph-node supervisor ${sleeping ? "sleeping" : "pending"}" id="graph-${id}">
+        <span class="node-icon" aria-hidden="true">${icon}</span>
+        <div class="node-title">${title}</div>
+        <div>${badge(sleeping ? "sleeping" : `${pending} pending`, sleeping ? "good" : "warn")}</div>
+        <div class="node-meta">${sleeping ? sleepCopy : "Có event có schema đang chờ xử lý."}</div>
+      </article>`;
+    }
+
+    function renderGraph(data) {
+      const counts = data.flock.pending_semantic;
+      $("graph-supervisors").innerHTML = [
+        supervisorNode("sol", "☀️", "Sol · planner", counts.sol, "Không polling. Chỉ thức dậy khi replan/anomaly/final review."),
+        supervisorNode("top", "🛡️", "DeepSeek Top", counts.top, "Đợi Duck Mẹ gửi anomaly hoặc task terminal."),
+        supervisorNode("mother", "🪿", "Duck Mẹ", counts.mother, "Điều phối lease và nhận quack có schema."),
+      ].join("");
+      $("graph-ducks").innerHTML = data.ducks.map((duck) => {
         const active = duck.state === "busy";
-        const progress = active ? Math.min(100, 12 + Number(duck.progress_seq || 0) * 12) : 0;
-        return `<article class="card duck ${active ? "active" : ""}">
-          <div class="duck-head"><span class="duck-icon" aria-hidden="true">🦆</span><span class="slot">slot ${duck.slot_id} · i${duck.incarnation}</span></div>
-          <div class="duck-task">${active ? esc(duck.task_id) : "Đang chờ đàn"}</div>
+        return `<article class="graph-node duck-node ${active ? "active" : "sleeping"}" id="graph-duck-${duck.slot_id}">
+          <span class="node-icon" aria-hidden="true">🦆</span>
+          <div class="node-title">Duck ${duck.slot_id} · i${duck.incarnation}</div>
           <div>${badge(active ? duck.phase : duck.state, active ? "good" : "")}</div>
-          <div class="duck-meta">${active ? `attempt ${duck.attempt}<br>heartbeat ${age(duck.heartbeat_age_seconds)} · progress ${age(duck.progress_age_seconds)}<br><code>${esc(short(duck.lease_id, 10))}</code>` : "Không có active lease"}</div>
-          <div class="progress-track" aria-label="Progress sequence ${duck.progress_seq || 0}"><span style="width:${progress}%"></span></div>
+          <div class="node-meta">${active ? `attempt ${duck.attempt} · hb ${age(duck.heartbeat_age_seconds)} · p${duck.progress_seq || 0}` : "không có lease"}</div>
+          <div class="quack"><span class="quack-label">quack</span>${esc(duckQuack(duck))}</div>
         </article>`;
       }).join("");
+      $("graph-tasks").innerHTML = data.tasks.map((task, index) => `<article class="graph-node task-node ${task.slot_id == null ? "sleeping" : "active"}" id="graph-task-${index}">
+        <div class="node-title">⚛ ${esc(task.task_id)}</div>
+        <div>${badge(task.state, stateTone(task.state))}</div>
+        <div class="node-meta">attempt ${task.attempts}/${task.max_attempts} · budget ${task.wall_used_seconds}/${task.wall_budget_seconds}s</div>
+      </article>`).join("") || `<div class="empty">Không có atom task</div>`;
+      requestAnimationFrame(() => drawGraphEdges(data));
+    }
+
+    function drawGraphEdges(data) {
+      const graph = $("flock-graph");
+      const svg = $("graph-edges");
+      const bounds = graph.getBoundingClientRect();
+      const point = (id, side) => {
+        const node = $(id);
+        if (!node) return null;
+        const box = node.getBoundingClientRect();
+        if (side === "left") return {x: box.left - bounds.left, y: box.top - bounds.top + box.height / 2};
+        if (side === "right") return {x: box.right - bounds.left, y: box.top - bounds.top + box.height / 2};
+        return {x: box.left - bounds.left + box.width / 2, y: side === "top" ? box.top - bounds.top : box.bottom - bounds.top};
+      };
+      const lines = [];
+      const edge = (fromId, toId, tone = "") => {
+        const from = point(fromId, "bottom");
+        const to = point(toId, "top");
+        if (from && to) lines.push(`<path class="graph-edge ${tone}" marker-end="url(#graph-arrow)" d="M ${from.x} ${from.y} C ${from.x} ${(from.y + to.y) / 2}, ${to.x} ${(from.y + to.y) / 2}, ${to.x} ${to.y}"/>`);
+      };
+      const horizontalEdge = (fromId, toId, tone = "") => {
+        const from = point(fromId, "right");
+        const to = point(toId, "left");
+        if (from && to) lines.push(`<path class="graph-edge ${tone}" marker-end="url(#graph-arrow)" d="M ${from.x} ${from.y} C ${(from.x + to.x) / 2} ${from.y}, ${(from.x + to.x) / 2} ${to.y}, ${to.x} ${to.y}"/>`);
+      };
+      horizontalEdge("graph-sol", "graph-top", data.flock.pending_semantic.sol ? "pending" : "");
+      horizontalEdge("graph-top", "graph-mother", data.flock.pending_semantic.top ? "pending" : "");
+      data.ducks.forEach((duck) => edge("graph-mother", `graph-duck-${duck.slot_id}`, duck.state === "busy" ? "active" : ""));
+      data.tasks.forEach((task, index) => {
+        if (task.slot_id != null) edge(`graph-duck-${task.slot_id}`, `graph-task-${index}`, "active");
+      });
+      svg.setAttribute("viewBox", `0 0 ${bounds.width} ${bounds.height}`);
+      svg.innerHTML = `<defs><marker id="graph-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="var(--line)"/></marker></defs>${lines.join("")}`;
     }
 
     function renderTasks(tasks) {
@@ -349,6 +452,7 @@
       const confirmation = window.prompt(`Nhập flock ID để huỷ toàn aggregate:\n${BOOTSTRAP.flockId}`);
       if (confirmation !== null) action("cancel", {confirm: confirmation});
     });
+    window.addEventListener("resize", () => { if (latest) requestAnimationFrame(() => drawGraphEdges(latest)); });
 
     const stream = new EventSource("/events");
     stream.addEventListener("open", () => { $("live-dot").classList.add("live"); $("connection-label").textContent = "Live"; });

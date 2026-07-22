@@ -173,6 +173,14 @@ def create_isolated_branch(workspace: Path, branch_ref: str) -> None:
 
 
 def _intent_to_add_untracked(workspace: Path, prefix: Sequence[str] = ()) -> None:
+    generated_excludes = (
+        "node_modules/**",
+        ".next/**",
+        ".vinext/**",
+        "dist/**",
+        ".wrangler/**",
+        "coverage/**",
+    )
     process = _git(
         [
             *prefix,
@@ -184,6 +192,7 @@ def _intent_to_add_untracked(workspace: Path, prefix: Sequence[str] = ()) -> Non
             ".",
             ":(exclude).agentctl-runtime/**",
             ":(exclude).git/**",
+            *(f":(exclude){path}" for path in generated_excludes),
         ],
         cwd=workspace,
         check=False,

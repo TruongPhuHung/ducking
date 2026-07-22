@@ -150,6 +150,7 @@ class DashboardTests(unittest.TestCase):
         self.assertEqual(len(snapshot["ducks"]), 6)
         self.assertEqual(snapshot["flock"]["active_ducks"], 0)
         self.assertEqual(snapshot["tasks"][0]["task_id"], "dashboard-unit")
+        self.assertEqual(snapshot["ducks"][0]["summary"], "")
         self.assertNotIn("semantic_profiles", json.dumps(snapshot))
         self.assertNotIn("argv", json.dumps(snapshot))
 
@@ -168,6 +169,8 @@ class DashboardTests(unittest.TestCase):
             page = response.read().decode()
             cookie = response.headers["Set-Cookie"].split(";", 1)[0]
         self.assertIn("Ducking control", page)
+        self.assertIn("Live flock graph", page)
+        self.assertIn("duckQuack", page)
         self.assertNotIn("__DUCKING_BOOTSTRAP__", page)
 
         stream_request = urllib.request.Request(

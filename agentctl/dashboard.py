@@ -80,6 +80,7 @@ def dashboard_snapshot(project_path: Path, flock_id: str) -> dict[str, Any]:
                 "lease_id": duck.get("lease_id"),
                 "attempt": None,
                 "phase": None,
+                "summary": "",
                 "progress_seq": None,
                 "heartbeat_age_seconds": None,
                 "progress_age_seconds": None,
@@ -92,6 +93,7 @@ def dashboard_snapshot(project_path: Path, flock_id: str) -> dict[str, Any]:
                         "task_id": task["task_id"],
                         "attempt": lease["attempt"],
                         "phase": lease.get("phase", "starting"),
+                        "summary": lease.get("summary", ""),
                         "progress_seq": lease.get("progress_seq", 0),
                         "heartbeat_age_seconds": _age_seconds(
                             lease.get("last_heartbeat_at"), now

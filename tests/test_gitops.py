@@ -351,5 +351,48 @@ class GitIsolationTests(unittest.TestCase):
             self.assertIn("payload.bin", snapshot.binary_files)
 
 
+class GeneratedOutputCaptureTests(unittest.TestCase):
+    def test_capture_ignores_generated_dependencies_but_keeps_other_ignored_files(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            repo = Path(temporary)
+            subprocess.run(["git", "init", "-b", "main", "--quiet"], cwd=repo, check=True)
+            (repo / ".gitignore").write_text("node_modules/\n.env\n", encoding="utf-8")
+            (repo / "tracked.txt").write_text("base\n", encoding="utf-8")
+            subprocess.run(["git", "add", "."], cwd=repo, check=True)
+            subprocess.run(
+                [
+                    "git",
+                    "-c",
+                    "user.name=Fixture",
+                    "-c",
+                    "user.email=fixture@example.test",
+                    "commit",
+                    "-m",
+                    "baseline",
+                    "--quiet",
+                ],
+                cwd=repo,
+                check=True,
+            )
+            base_sha = subprocess.run(
+                ["git", "rev-parse", "HEAD"],
+                cwd=repo,
+                check=True,
+                text=True,
+                stdout=subprocess.PIPE,
+            ).stdout.strip()
+
+            (repo / "generated.txt").write_text("candidate\n", encoding="utf-8")
+            (repo / ".env").write_text("SHOULD_BE_DETECTED=1\n", encoding="utf-8")
+            dependencies = repo / "node_modules" / "fixture"
+            dependencies.mkdir(parents=True)
+            (dependencies / "large.js").write_bytes(b"x" * 1_000_000)
+
+            snapshot = capture_diff(repo, base_sha, max_patch_bytes=100_000)
+
+            self.assertEqual(snapshot.changed_files, (".env", "generated.txt"))
+            self.assertNotIn(b"node_modules", snapshot.patch)
+
+
 if __name__ == "__main__":
     unittest.main()

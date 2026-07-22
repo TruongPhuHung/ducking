@@ -167,8 +167,10 @@ patch-independent or their code handoff must be managed explicitly outside the
 MVP.
 
 The optional `flock dashboard` is a loopback-only read/control adapter over the
-same durable state. It projects six slots, tasks, lease ages, outbox items,
-alerts, and recent events through one-second SSE snapshots. `tick`, `sweep`,
+same durable state. Its live graph projects Sol, Top, Mother, six slots, tasks,
+lease ages, outbox items, alerts, and recent events through one-second SSE
+snapshots. Each duck emits a derived two-sentence-or-shorter status “quack” from
+bounded lease facts; it is not a transcript or a new model call. `tick`, `sweep`,
 typed-confirmation cancellation, and cost-confirmed Mother/Top dispatch use
 same-origin JSON requests plus a random per-process action token. It exposes no
 profile argv or credentials and does not become a child-process runner.
@@ -261,10 +263,31 @@ accept or integrate a child run, create a combined patch, or make deployment
 eligible. `rework` or Sol's `abort_flock` moves the flock to escalation.
 
 Normal scheduling, heartbeat processing, lease expiry, automatic retries, and
-task routing therefore do not spend Sol tokens. The Codex/Sol control session is
-awakened only for a senior escalation or aggregate final review by polling
-`supervisor next --role sol`. Sol still reviews authoritative child-run patches
-and evidence rather than semantic-supervisor prose.
+task routing therefore do not spend Sol tokens. A resident runner or host
+notification adapter must own those loops and wake the Codex/Sol control
+session only after a durable `replan_required`, senior anomaly, or aggregate
+final-review event exists. The awakened Sol session calls `supervisor next
+--role sol` once for that notification; Sol must not continuously poll it. The
+current CLI exposes the durable inbox but does not yet ship that resident
+notification adapter. Sol still reviews authoritative child-run patches and
+evidence rather than semantic-supervisor prose.
+
+Duck-to-duck conversations are deliberately disallowed. When cross-task
+coordination is unavoidable, an isolated duck sends a bounded `quack` envelope
+to Mother with an intent (`claim_path`, `blocked_by`, `publish_artifact`,
+`need_contract`, or `answer`), task/slot IDs, optional hash references, and at
+most three short sentences. Mother validates ownership, TTL, and deduplication,
+then relays a new snapshot; raw code, logs, credentials, and conversation
+history never cross branches. Plans should still prefer disjoint paths and
+independent tasks, because messaging does not merge patches or create hidden
+dependencies.
+
+A long-running unit is treated as a suspected non-atomic contract only after a
+bounded progress stall or repeated same-class attempt failure, not from wall
+time alone. Mother routes `atom_suspected` to Top; Top may create a Sol
+`replan_required` event. Sol then supersedes the unit with a new plan whose
+acceptance claims and path ownership are partitioned across smaller tasks. A
+child or semantic supervisor may never broaden or split its own contract.
 
 ### Flock command surface
 

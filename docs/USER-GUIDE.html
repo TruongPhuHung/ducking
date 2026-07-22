@@ -792,7 +792,7 @@ cp "$ACP_ROOT/templates/opencode-supervisor-agent.md" \
 
       <p>Mother có thể chọn các command được offer như <code>wait</code>, <code>recycle</code>, <code>retry_task</code>, <code>dead_letter</code>, <code>notify_top</code> hoặc no-op. Top chỉ có <code>ack</code>, <code>escalate_sol</code> và <code>open_final_review</code> khi mọi unit đã thành công và được báo cáo; Top không được <code>abort_flock</code>. Với <code>retry_wait</code> mơ hồ, <code>ack</code> của Top hoặc Sol sẽ authorize attempt hữu hạn tiếp theo. Action phải bind đúng snapshot ID, SHA-256, claim, command ID, subject revision, Flock revision, coordinator epoch và state; command tự thêm, claim cũ hoặc decision cũ phải fail closed.</p>
 
-      <p>Sol không được dispatch như external profile. Khi top mở escalation/final review, Codex/Sol control session poll:</p>
+      <p>Sol không được dispatch như external profile và không được đứng trong vòng polling. Resident runner/notification adapter phải theo dõi runtime rẻ, rồi chỉ đánh thức Codex/Sol khi đã có durable replan, senior anomaly hoặc final-review event; khi thức dậy Sol gọi lệnh sau đúng một lần để lấy snapshot:</p>
 
       <pre><code>"$ACP" supervisor next --project /absolute/path/to/project \
   --flock "$FLOCK_ID" --role sol --json</code></pre>
@@ -803,7 +803,7 @@ cp "$ACP_ROOT/templates/opencode-supervisor-agent.md" \
       <pre><code>"$ACP" flock dashboard --project /absolute/path/to/project \
   --flock "$FLOCK_ID" --port 8765 \
   --allow-unsafe-supervisor</code></pre>
-      <p>Mở <code>http://127.0.0.1:8765/</code> để xem live sáu duck slot, lease, heartbeat/progress age, task budget, semantic outbox, anomaly và durable timeline. Dashboard cập nhật mỗi giây bằng SSE; có thể gọi <code>tick</code>, <code>sweep</code>, huỷ aggregate sau khi nhập đúng flock ID, và dispatch một Mother/Top event sau khi xác nhận token cost.</p>
+      <p>Mở <code>http://127.0.0.1:8765/</code> để xem graph live <code>Sol → Top → Duck Mẹ → sáu duck con → task</code>, cùng lease, heartbeat/progress age, task budget, semantic outbox, anomaly và durable timeline. Sol hiện <code>sleeping</code> khi không có event. Mỗi duck có speech bubble “quack” tối đa hai câu, được derive từ state/lease summary chứ không gọi model hay chia sẻ transcript. Dashboard cập nhật mỗi giây bằng SSE; có thể gọi <code>tick</code>, <code>sweep</code>, huỷ aggregate sau khi nhập đúng flock ID, và dispatch một Mother/Top event sau khi xác nhận token cost.</p>
       <div class="callout warn"><strong>Control plane cục bộ, không phải process runner.</strong><p>Server chỉ bind loopback và action dùng token ngẫu nhiên theo process. Bỏ <code>--allow-unsafe-supervisor</code> nếu chỉ muốn quan sát; nút DeepSeek sẽ bị khoá. Dashboard không launch child, không ghép patch và không làm Sol polling.</p></div>
 
       <h3>6.7 Giới hạn MVP và ví dụ chi phí cache</h3>
